@@ -4,18 +4,14 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
-const DEFAULT_SEOUL_API_KEY = process.env.SEOUL_OPENAPI_KEY;
 const BASE_URL = "http://openapi.seoul.go.kr:8088";
 
-if (!DEFAULT_SEOUL_API_KEY) {
-  console.error("경고: SEOUL_OPENAPI_KEY 환경변수가 설정되지 않았습니다.");
-}
-
-// 요청별 API 키 — x-seoul-api-key 헤더 값을 저장. 요청마다 격리되어 서로 섞이지 않는다.
+// 요청별 API 키 — ?key=... 쿼리 파라미터에서 추출한 값을 저장. 요청마다 격리되어 서로 섞이지 않는다.
+// 서버 공용 키로 폴백하지 않는다 — 각자 자기 키를 URL에 넣어야만 동작한다.
 const apiKeyStorage = new AsyncLocalStorage();
 
 function getApiKey() {
-  return apiKeyStorage.getStore()?.apiKey || DEFAULT_SEOUL_API_KEY;
+  return apiKeyStorage.getStore()?.apiKey;
 }
 
 function parseSimpleXml(xml, rowTag) {
@@ -127,10 +123,27 @@ function createServer() {
 const app = express();
 app.use(express.json());
 
-// x-seoul-api-key 헤더 값을 요청 스코프에 저장 — 없으면 getApiKey()가 서버 기본값으로 대체한다.
-app.use((req, res, next) => {
-  const headerKey = req.headers["x-seoul-api-key"];
-  apiKeyStorage.run({ apiKey: headerKey || undefined }, next);
+// ?key=... 쿼리 파라미터에서 서울 API 키를 추출해 요청 스코프에 저장한다.
+// 키가 없으면 HTTP 401로 즉시 차단하고 MCP 서버로 전달하지 않는다.
+// 연결 URL 예시: https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인서울API키
+app.use("/mcp", (req, res, next) => {
+  const apiKey = (req.query.key || "").toString().trim();
+
+  if (!apiKey) {
+    res
+      .status(401)
+      .type("text/plain; charset=utf-8")
+      .send(
+        "API 키가 필요합니다. ?key=본인의_서울열린데이터광장_인증키를 URL에 추가해주세요.\n\n" +
+          "연결 URL 형식:\n" +
+          "  https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인서울API키\n\n" +
+          "API 키 발급:\n" +
+          "  https://data.seoul.go.kr → 회원가입 → 인증키 관리\n"
+      );
+    return;
+  }
+
+  apiKeyStorage.run({ apiKey }, next);
 });
 
 // stateless 모드에서는 요청마다 새 McpServer/transport를 만들어야 한다.

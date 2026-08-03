@@ -36,3 +36,12 @@
   - SEOUL_OPENAPI_KEY를 fly secrets로 설정 후 flyctl deploy 성공 (머신 2대 기동, DNS 확인 완료)
   - https://construction-alert-mcp-hlucent.fly.dev/mcp 에 initialize 요청 보내 정상 응답(tools capability 포함) 확인
 - 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)
+
+## 2026-08-04 (6)
+- 한 일: 다중 사용자 API 키 방식을 seoul-air-quality-mcp와 동일한 ?key= 쿼리 파라미터 방식으로 재구현 (Claude Code로 진행).
+  - x-seoul-api-key 헤더 방식 → ?key=본인키 쿼리 파라미터 방식으로 변경
+  - ?key=가 없으면 서버 공용 키로 폴백하지 않고 401 + 명확한 안내 메시지 반환하도록 변경 (SEOUL_OPENAPI_KEY 폴백 완전히 제거)
+  - AsyncLocalStorage 기반 요청별 키 격리는 그대로 유지
+  - 로컬 테스트: 키 없이 요청 → 401 확인 / ?key=실제키로 요청 → 정상 데이터 반환 확인 / 반복 요청도 정상 동작 확인(회귀 없음)
+  - README.md를 ?key= 방식 안내로 갱신
+- 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)

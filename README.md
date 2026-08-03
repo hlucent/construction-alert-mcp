@@ -23,27 +23,25 @@
 ### 로컬 실행
 ```
 npm install
-cp .env.example .env   # SEOUL_OPENAPI_KEY 값 채우기
 npm start
 ```
 서버는 `http://localhost:8080/mcp` (Streamable HTTP transport)에서 요청을 받는다.
-
-### 배포된 서버 사용
-`https://construction-alert-mcp-hlucent.fly.dev/mcp` 엔드포인트로 MCP 클라이언트를 연결하면 된다.
-키를 별도로 지정하지 않으면 서버 기본 키(`SEOUL_OPENAPI_KEY`)로 동작한다.
+접속 시 반드시 `?key=본인의_서울열린데이터광장_인증키`를 URL에 붙여야 한다 (아래 참고).
 
 ### 다른 사용자가 자기 API 키로 쓰는 방법
-이 서버는 여러 사용자가 동시에 각자의 서울 열린데이터광장 인증키로 접속할 수 있다. 요청 헤더에 담긴 키는 요청별로 격리되어(Node.js `AsyncLocalStorage`) 서로 섞이지 않는다.
+이 서버는 서버 공용 키를 공유하지 않는다. 각 사용자가 반드시 자신의 서울 열린데이터광장 인증키를 URL 쿼리 파라미터로 넣어야 동작하며, 요청별 키는 Node.js `AsyncLocalStorage`로 격리되어 여러 사용자가 동시에 접속해도 서로 섞이지 않는다.
 
 1. [data.seoul.go.kr](https://data.seoul.go.kr)에서 회원가입 후 "인증키 관리" 메뉴에서 본인 인증키를 발급받는다.
-2. MCP 클라이언트 설정에서 이 서버에 연결할 때 HTTP 헤더에 아래를 추가한다.
+2. MCP 클라이언트 설정에서 이 서버에 연결할 때 URL에 `?key=본인키`를 붙인다.
    ```
-   x-seoul-api-key: 본인이_발급받은_인증키
+   https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인이_발급받은_인증키
    ```
-3. 헤더를 보내지 않으면 서버의 기본 키(`SEOUL_OPENAPI_KEY`)로 동작한다.
+3. `?key=`가 없으면 서버는 요청을 처리하지 않고 401과 함께 아래 안내를 반환한다.
+   ```
+   API 키가 필요합니다. ?key=본인의_서울열린데이터광장_인증키를 URL에 추가해주세요.
+   ```
 
 ### fly.dev 배포
 ```
 flyctl deploy
 ```
-`SEOUL_OPENAPI_KEY`는 `flyctl secrets set SEOUL_OPENAPI_KEY=...`로 설정되어 있어야 한다.
