@@ -30,6 +30,17 @@ npm start
 
 ### 배포된 서버 사용
 `https://construction-alert-mcp-hlucent.fly.dev/mcp` 엔드포인트로 MCP 클라이언트를 연결하면 된다.
+키를 별도로 지정하지 않으면 서버 기본 키(`SEOUL_OPENAPI_KEY`)로 동작한다.
+
+### 다른 사용자가 자기 API 키로 쓰는 방법
+이 서버는 여러 사용자가 동시에 각자의 서울 열린데이터광장 인증키로 접속할 수 있다. 요청 헤더에 담긴 키는 요청별로 격리되어(Node.js `AsyncLocalStorage`) 서로 섞이지 않는다.
+
+1. [data.seoul.go.kr](https://data.seoul.go.kr)에서 회원가입 후 "인증키 관리" 메뉴에서 본인 인증키를 발급받는다.
+2. MCP 클라이언트 설정에서 이 서버에 연결할 때 HTTP 헤더에 아래를 추가한다.
+   ```
+   x-seoul-api-key: 본인이_발급받은_인증키
+   ```
+3. 헤더를 보내지 않으면 서버의 기본 키(`SEOUL_OPENAPI_KEY`)로 동작한다.
 
 ### fly.dev 배포
 ```
