@@ -1,6 +1,6 @@
 # 건설알림이 MCP
 
-서울시 건설공사(공사장) 알림 정보를 조회하는 MCP 서버. 서울시 대기환경정보 MCP와 동일한 구조/배포 방식(fly.dev)을 따른다.
+서울시 건설공사(공사장) 알림 정보를 조회하는 MCP 서버.
 
 ## 상태
 ✅ fly.dev 배포 완료 — https://construction-alert-mcp-hlucent.fly.dev/mcp
