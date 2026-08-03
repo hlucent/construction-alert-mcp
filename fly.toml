@@ -1,7 +1,7 @@
-# fly.toml — 5단계(배포)에서 앱 이름/설정 확정 후 채울 예정
-app = "construction-alert-mcp"  # TODO: 실제 앱 이름으로 변경
+app = "construction-alert-mcp-hlucent"
 
 [build]
+  dockerfile = "Dockerfile"
 
 [http_service]
   internal_port = 8080

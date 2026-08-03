@@ -1,5 +1,6 @@
+import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 
 const SEOUL_API_KEY = process.env.SEOUL_OPENAPI_KEY;
@@ -111,6 +112,27 @@ server.tool(
   }
 );
 
-const transport = new StdioServerTransport();
+const transport = new StreamableHTTPServerTransport({
+  sessionIdGenerator: undefined,
+});
 await server.connect(transport);
-console.error("construction-alert-mcp 서버가 시작되었습니다.");
+
+const app = express();
+app.use(express.json());
+
+app.post("/mcp", async (req, res) => {
+  await transport.handleRequest(req, res, req.body);
+});
+
+app.get("/mcp", async (req, res) => {
+  await transport.handleRequest(req, res);
+});
+
+app.delete("/mcp", async (req, res) => {
+  await transport.handleRequest(req, res);
+});
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => {
+  console.error(`construction-alert-mcp 서버가 포트 ${PORT}에서 시작되었습니다. (/mcp)`);
+});
