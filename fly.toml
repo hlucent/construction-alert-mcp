@@ -1,0 +1,11 @@
+# fly.toml — 5단계(배포)에서 앱 이름/설정 확정 후 채울 예정
+app = "construction-alert-mcp"  # TODO: 실제 앱 이름으로 변경
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
