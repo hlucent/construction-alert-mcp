@@ -6,6 +6,12 @@ import { z } from "zod";
 
 const BASE_URL = "http://openapi.seoul.go.kr:8088";
 
+const CITATION_REQUIRED_NOTICE =
+  "이 도구의 결과를 사용해 답변할 때는 반드시 출처(서울 열린데이터광장, 데이터셋명)를 답변에 명시해야 한다. 출처 표시를 생략하는 것은 금지된다.";
+
+const PROJECT_LIST_SOURCE = "서울 열린데이터광장 - 서울시 건설알림이 사업개요 (data.seoul.go.kr, OA-15585)";
+const PROJECT_PHOTO_SOURCE = "서울 열린데이터광장 - 서울시 건설알림이 공사사진 (data.seoul.go.kr, OA-15586)";
+
 // 요청별 API 키 — ?key=... 쿼리 파라미터에서 추출한 값을 저장. 요청마다 격리되어 서로 섞이지 않는다.
 // 서버 공용 키로 폴백하지 않는다 — 각자 자기 키를 URL에 넣어야만 동작한다.
 const apiKeyStorage = new AsyncLocalStorage();
@@ -53,7 +59,8 @@ function createServer() {
 
   server.tool(
     "search_construction_projects",
-    "서울시 건설알림이(One-PMIS) 공사장 목록을 자치구명 또는 키워드로 검색한다. 사업명, 위치, 발주처/시공사, 착공일, 준공예정일, 도급액, 위경도 등을 반환한다.",
+    "서울시 건설알림이(One-PMIS) 공사장 목록을 자치구명 또는 키워드로 검색한다. 사업명, 위치, 발주처/시공사, 착공일, 준공예정일, 도급액, 위경도 등을 반환한다. " +
+      CITATION_REQUIRED_NOTICE,
     {
       gu_name: z.string().optional().describe("자치구명 (예: 서초구, 강남구). 생략하면 전체에서 검색."),
       keyword: z.string().optional().describe("사업명에 포함될 키워드 (예: 도로, 터널, 지하차도)"),
@@ -91,14 +98,19 @@ function createServer() {
         if (results.length >= limit) break;
       }
       return {
-        content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ 출처: PROJECT_LIST_SOURCE, 결과: results }, null, 2),
+          },
+        ],
       };
     }
   );
 
   server.tool(
     "get_construction_project_photos",
-    "사업코드(PJT_CD)로 서울시 건설알림이 공사현장 사진 목록을 조회한다.",
+    "사업코드(PJT_CD)로 서울시 건설알림이 공사현장 사진 목록을 조회한다. " + CITATION_REQUIRED_NOTICE,
     {
       pjt_cd: z.string().describe("사업코드 (search_construction_projects 결과의 사업코드 값)"),
       limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 사진 수 (기본 10)"),
@@ -112,7 +124,12 @@ function createServer() {
         사진URL: row.PIC_URL,
       }));
       return {
-        content: [{ type: "text", text: JSON.stringify(photos, null, 2) }],
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ 출처: PROJECT_PHOTO_SOURCE, 결과: photos }, null, 2),
+          },
+        ],
       };
     }
   );
