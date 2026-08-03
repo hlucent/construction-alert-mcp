@@ -27,3 +27,12 @@
   - node --check 문법 검증 통과
   - 실제 SEOUL_OPENAPI_KEY로 pmisPjtList 호출 → 서초구 공사장 3건 정상 반환 확인
 - 다음 할 일: 5단계 — fly.dev 배포
+
+## 2026-08-04 (5)
+- 한 일: 5단계 완료 — fly.dev 배포 성공 (Claude Code로 진행).
+  - StdioServerTransport → StreamableHTTPServerTransport로 전환, Express로 /mcp 경로 노출 (PORT: process.env.PORT || 8080)
+  - Dockerfile 추가 (node:20-slim, npm ci --omit=dev), fly.toml에 dockerfile 경로/internal_port(8080) 반영
+  - 앱 이름 충돌 방지를 위해 construction-alert-mcp-hlucent로 확정, flyctl apps create로 생성
+  - SEOUL_OPENAPI_KEY를 fly secrets로 설정 후 flyctl deploy 성공 (머신 2대 기동, DNS 확인 완료)
+  - https://construction-alert-mcp-hlucent.fly.dev/mcp 에 initialize 요청 보내 정상 응답(tools capability 포함) 확인
+- 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)
