@@ -20,3 +20,10 @@
     2. 국토교통부 건축HUB 건축인허가정보서비스로 대체
     3. cis.seoul.go.kr 페이지 직접 확인 후 스크래핑 검토 (이용약관 확인 필요)
 - 다음 할 일: 2단계 — 데이터소스 확정 및 인증키 발급
+
+## 2026-08-03 (4)
+- 한 일: 4단계 완료 — 실제 API 호출 테스트 성공 (Claude Code로 진행).
+  - search_construction_projects, get_construction_project_photos 도구 구현 완료
+  - node --check 문법 검증 통과
+  - 실제 SEOUL_OPENAPI_KEY로 pmisPjtList 호출 → 서초구 공사장 3건 정상 반환 확인
+- 다음 할 일: 5단계 — fly.dev 배포
