@@ -12,6 +12,7 @@ const CITATION_REQUIRED_NOTICE =
 const PROJECT_LIST_SOURCE = "서울 열린데이터광장 - 서울시 건설알림이 사업개요 (data.seoul.go.kr, OA-15585)";
 const PROJECT_PHOTO_SOURCE = "서울 열린데이터광장 - 서울시 건설알림이 공사사진 (data.seoul.go.kr, OA-15586)";
 const CONSTRUCTION_WORK_SOURCE = "서울 열린데이터광장 - 서울시 건설 알림이 정보 (data.seoul.go.kr, OA-1222)";
+const CONSTRUCTION_PROGRESS_SOURCE = "서울 열린데이터광장 - 서울시 건설공사 추진 현황 (data.seoul.go.kr, OA-2540)";
 
 // 요청별 API 키 — ?key=... 쿼리 파라미터에서 추출한 값을 저장. 요청마다 격리되어 서로 섞이지 않는다.
 // 서버 공용 키로 폴백하지 않는다 — 각자 자기 키를 URL에 넣어야만 동작한다.
@@ -59,6 +60,20 @@ async function fetchConstructionWorkList(startIndex, endIndex, guName) {
   if (guName) {
     url += `${encodeURIComponent(guName)}/`;
   }
+  const res = await fetch(url);
+  const text = await res.text();
+  return parseSimpleXml(text, "row");
+}
+
+async function fetchConstructionProgress(startIndex, endIndex, bizName, instName) {
+  const segments = [startIndex, endIndex];
+  if (bizName || instName) {
+    segments.push(bizName ? encodeURIComponent(bizName) : "");
+  }
+  if (instName) {
+    segments.push(encodeURIComponent(instName));
+  }
+  const url = `${BASE_URL}/${getApiKey()}/xml/ListOnePMISBizInfo/${segments.join("/")}/`;
   const res = await fetch(url);
   const text = await res.text();
   return parseSimpleXml(text, "row");
@@ -192,6 +207,71 @@ function createServer() {
           {
             type: "text",
             text: JSON.stringify({ 출처: CONSTRUCTION_WORK_SOURCE, 결과: results }, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "get_construction_progress",
+    "서울시 건설공사 추진 현황(ListOnePMISBizInfo)을 사업명/발주처기관명 키워드로 검색한다. 계획/실적 공정률, 대비율, D-Day, 도급액/사업비, 시공사/감리사/발주처 담당자, 공사위치 등 공사 진행 현황을 반환한다. 자치구명은 결과를 받은 뒤 클라이언트에서 필터링한다. " +
+      CITATION_REQUIRED_NOTICE,
+    {
+      biz_name: z.string().optional().describe("사업명(BIZ_NM)에 포함될 키워드"),
+      inst_name: z.string().optional().describe("발주처기관명(INST_NM) 키워드"),
+      gu_name: z.string().optional().describe("자치구명 (예: 종로구). API 자체 필터는 없어 결과를 받은 뒤 클라이언트에서 필터링한다."),
+      max_scan: z.number().int().min(1).max(2000).default(500).describe("검색을 위해 훑어볼 최대 레코드 수 (기본 500)"),
+      limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 결과 수 (기본 10)"),
+    },
+    async ({ biz_name, inst_name, gu_name, max_scan, limit }) => {
+      const pageSize = 500;
+      const results = [];
+
+      for (let start = 1; start <= max_scan; start += pageSize) {
+        const end = Math.min(start + pageSize - 1, max_scan);
+        const rows = await fetchConstructionProgress(start, end, biz_name, inst_name);
+        if (rows.length === 0) break;
+        for (const row of rows) {
+          const matchesGu = !gu_name || row.GU_NM === gu_name;
+          if (matchesGu) {
+            results.push({
+              사업코드: row.BIZ_CD,
+              사업명: row.BIZ_NM,
+              자치구: row.GU_NM,
+              준공여부: row.CMCN_YN2 ? row.CMCN_YN2.trim() : row.CMCN_YN2,
+              계획공정율: row.PROCS_PLAN,
+              실적공정율: row.PROCS_PRFMNC,
+              대비율: row.PER_RT,
+              기준일자: row.CRTR_YMD,
+              총공기: row.DAY_TOT,
+              경과일: row.DAY_ELPS,
+              D_Day: row.DAY_JOB,
+              도급액_억원: row.AMT_CTRT,
+              사업비_억원: row.AMT_BIZ,
+              공사기간: row.CSTRN_PRD,
+              공사위치: row.CSTRN_PSTN,
+              위도: row.LAT,
+              경도: row.LOT,
+              발주처: row.INST_NM,
+              발주처담당자: row.PIC_PE_NM,
+              책임감리원: row.SPVS_PE_NM,
+              현장대리인: row.AGT_PE_NM,
+              감리사업체: row.SPVS_NM,
+              시공사업체: row.CNST_ENT,
+              사업규모: row.BIZ_SCL,
+            });
+            if (results.length >= limit) break;
+          }
+        }
+        if (results.length >= limit) break;
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ 출처: CONSTRUCTION_PROGRESS_SOURCE, 결과: results }, null, 2),
           },
         ],
       };
