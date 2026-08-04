@@ -69,3 +69,11 @@
   - 원본 XML 확인 결과 이 데이터셋은 CDATA 없이 순수 텍스트 필드만 사용함을 확인 (OA-1222와 달리 파서 수정 불필요)
   - node --check 통과, 실제 SEOUL_OPENAPI_KEY로 로컬 서버 기동 후 발주처기관명("서울아리수본부")·자치구명("강서구") 조회 모두 공정률 데이터 포함 정상 반환 확인
 - 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)
+
+## 2026-08-04 (10)
+- 한 일: 기존 도구 2개 개선 (Claude Code로 진행).
+  - `get_construction_progress`: 계획/실적 공정율·대비율이 "0"이면 "미입력"으로 표시하도록 변경 (0이 아닌 값은 숫자로 반환). `min_amount`(억원) 파라미터 추가 — API 자체엔 금액 필터가 없어 max_scan만큼 조회 후 도급액(AMT_CTRT) 기준으로 클라이언트에서 필터링
+  - `search_construction_projects`: 발주처_연락처(TEL_1), 건설사업관리단_연락처(TEL_2), 시공사_연락처(TEL_3) 필드 추가
+  - 두 도구 description에 새 파라미터/필드 설명 반영
+  - node --check 통과, 실제 SEOUL_OPENAPI_KEY로 로컬 테스트 — min_amount=100 지정 시 100억 미만 결과 없음 확인, 공정율 0인 건 "미입력"으로 표시됨 확인, search_construction_projects 연락처 3종 정상 반환 확인
+- 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)

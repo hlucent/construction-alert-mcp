@@ -21,10 +21,10 @@
 - 서울시 건설공사 추진 현황 (ListOnePMISBizInfo) (data.seoul.go.kr, OA-2540)
 
 ## 도구(tool) 목록
-- `search_construction_projects` — 서울시 건설알림이(One-PMIS) 공사장 목록을 자치구명/키워드로 검색 (사업명, 위치, 발주처/시공사, 착공일, 준공예정일, 도급액, 위경도 등 반환)
+- `search_construction_projects` — 서울시 건설알림이(One-PMIS) 공사장 목록을 자치구명/키워드로 검색 (사업명, 위치, 발주처/시공사, 착공일, 준공예정일, 도급액, 위경도, 발주처/건설사업관리단/시공사 연락처 등 반환)
 - `get_construction_project_photos` — 사업코드(PJT_CD)로 공사현장 사진 목록 조회
 - `search_construction_work_by_district` — 서울시 건설 알림이 정보(ListConstructionWorkService)를 자치구명/프로젝트명 키워드로 검색 (자치구명이 있으면 서버가 직접 해당 구만 필터링해 반환. 프로젝트코드, 프로젝트명, 착수일, 사업기간, 진행상태, 사무실/현장주소, 위경도, 사업금액 등 반환)
-- `get_construction_progress` — 서울시 건설공사 추진 현황(ListOnePMISBizInfo)을 사업명/발주처기관명 키워드로 검색 (계획/실적 공정률, 대비율, D-Day, 도급액/사업비, 시공사/감리사/발주처 담당자, 공사위치 등 반환. 자치구명은 클라이언트에서 필터링)
+- `get_construction_progress` — 서울시 건설공사 추진 현황(ListOnePMISBizInfo)을 사업명/발주처기관명 키워드로 검색 (계획/실적 공정률, 대비율, D-Day, 도급액/사업비, 시공사/감리사/발주처 담당자, 공사위치 등 반환. 자치구명·최소 도급액(min_amount)은 클라이언트에서 필터링. 공정률/대비율이 0이면 "미입력"으로 표시)
 
 > **출처 표기 필수**: 모든 도구가 결과 JSON에 `출처` 필드(서울 열린데이터광장 데이터셋명)를 포함하며, 이 MCP를 사용해 답변할 때는 반드시 그 출처를 답변에 명시해야 한다. 출처 생략은 금지된다.
 

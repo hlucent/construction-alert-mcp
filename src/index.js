@@ -65,6 +65,12 @@ async function fetchConstructionWorkList(startIndex, endIndex, guName) {
   return parseSimpleXml(text, "row");
 }
 
+function formatRate(value) {
+  if (value === "0") return "미입력";
+  const num = Number(value);
+  return Number.isNaN(num) ? value : num;
+}
+
 async function fetchConstructionProgress(startIndex, endIndex, bizName, instName) {
   const segments = [startIndex, endIndex];
   if (bizName || instName) {
@@ -87,7 +93,7 @@ function createServer() {
 
   server.tool(
     "search_construction_projects",
-    "서울시 건설알림이(One-PMIS) 공사장 목록을 자치구명 또는 키워드로 검색한다. 사업명, 위치, 발주처/시공사, 착공일, 준공예정일, 도급액, 위경도 등을 반환한다. " +
+    "서울시 건설알림이(One-PMIS) 공사장 목록을 자치구명 또는 키워드로 검색한다. 사업명, 위치, 발주처/시공사, 착공일, 준공예정일, 도급액, 위경도, 발주처/건설사업관리단/시공사 연락처 등을 반환한다. " +
       CITATION_REQUIRED_NOTICE,
     {
       gu_name: z.string().optional().describe("자치구명 (예: 서초구, 강남구). 생략하면 전체에서 검색."),
@@ -119,6 +125,9 @@ function createServer() {
               시공사: row.ORG_3,
               위도: row.LAT,
               경도: row.LNG,
+              발주처_연락처: row.TEL_1,
+              건설사업관리단_연락처: row.TEL_2,
+              시공사_연락처: row.TEL_3,
             });
             if (results.length >= limit) break;
           }
@@ -215,16 +224,17 @@ function createServer() {
 
   server.tool(
     "get_construction_progress",
-    "서울시 건설공사 추진 현황(ListOnePMISBizInfo)을 사업명/발주처기관명 키워드로 검색한다. 계획/실적 공정률, 대비율, D-Day, 도급액/사업비, 시공사/감리사/발주처 담당자, 공사위치 등 공사 진행 현황을 반환한다. 자치구명은 결과를 받은 뒤 클라이언트에서 필터링한다. " +
+    "서울시 건설공사 추진 현황(ListOnePMISBizInfo)을 사업명/발주처기관명 키워드로 검색한다. 계획/실적 공정률, 대비율, D-Day, 도급액/사업비, 시공사/감리사/발주처 담당자, 공사위치 등 공사 진행 현황을 반환한다. 자치구명과 최소 도급액은 결과를 받은 뒤 클라이언트에서 필터링한다. 공정률/대비율 값이 0이면 미입력으로 표시한다. " +
       CITATION_REQUIRED_NOTICE,
     {
       biz_name: z.string().optional().describe("사업명(BIZ_NM)에 포함될 키워드"),
       inst_name: z.string().optional().describe("발주처기관명(INST_NM) 키워드"),
       gu_name: z.string().optional().describe("자치구명 (예: 종로구). API 자체 필터는 없어 결과를 받은 뒤 클라이언트에서 필터링한다."),
+      min_amount: z.number().optional().describe("최소 도급액(억원). 지정하면 도급액(AMT_CTRT)이 이 값 이상인 건만 반환. API 자체 필터는 없어 max_scan만큼 조회한 뒤 클라이언트에서 필터링한다."),
       max_scan: z.number().int().min(1).max(2000).default(500).describe("검색을 위해 훑어볼 최대 레코드 수 (기본 500)"),
       limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 결과 수 (기본 10)"),
     },
-    async ({ biz_name, inst_name, gu_name, max_scan, limit }) => {
+    async ({ biz_name, inst_name, gu_name, min_amount, max_scan, limit }) => {
       const pageSize = 500;
       const results = [];
 
@@ -234,15 +244,16 @@ function createServer() {
         if (rows.length === 0) break;
         for (const row of rows) {
           const matchesGu = !gu_name || row.GU_NM === gu_name;
-          if (matchesGu) {
+          const matchesAmount = min_amount === undefined || parseFloat(row.AMT_CTRT) >= min_amount;
+          if (matchesGu && matchesAmount) {
             results.push({
               사업코드: row.BIZ_CD,
               사업명: row.BIZ_NM,
               자치구: row.GU_NM,
               준공여부: row.CMCN_YN2 ? row.CMCN_YN2.trim() : row.CMCN_YN2,
-              계획공정율: row.PROCS_PLAN,
-              실적공정율: row.PROCS_PRFMNC,
-              대비율: row.PER_RT,
+              계획공정율: formatRate(row.PROCS_PLAN),
+              실적공정율: formatRate(row.PROCS_PRFMNC),
+              대비율: formatRate(row.PER_RT),
               기준일자: row.CRTR_YMD,
               총공기: row.DAY_TOT,
               경과일: row.DAY_ELPS,
