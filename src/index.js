@@ -11,6 +11,7 @@ const CITATION_REQUIRED_NOTICE =
 
 const PROJECT_LIST_SOURCE = "서울 열린데이터광장 - 서울시 건설알림이 사업개요 (data.seoul.go.kr, OA-15585)";
 const PROJECT_PHOTO_SOURCE = "서울 열린데이터광장 - 서울시 건설알림이 공사사진 (data.seoul.go.kr, OA-15586)";
+const CONSTRUCTION_WORK_SOURCE = "서울 열린데이터광장 - 서울시 건설 알림이 정보 (data.seoul.go.kr, OA-1222)";
 
 // 요청별 API 키 — ?key=... 쿼리 파라미터에서 추출한 값을 저장. 요청마다 격리되어 서로 섞이지 않는다.
 // 서버 공용 키로 폴백하지 않는다 — 각자 자기 키를 URL에 넣어야만 동작한다.
@@ -27,10 +28,10 @@ function parseSimpleXml(xml, rowTag) {
   while ((match = rowRegex.exec(xml)) !== null) {
     const rowXml = match[1];
     const obj = {};
-    const fieldRegex = /<([A-Z0-9_]+)>([^<]*)<\/\1>/g;
+    const fieldRegex = /<([A-Z0-9_]+)>(?:<!\[CDATA\[([\s\S]*?)\]\]>|([^<]*))<\/\1>/g;
     let fieldMatch;
     while ((fieldMatch = fieldRegex.exec(rowXml)) !== null) {
-      obj[fieldMatch[1]] = fieldMatch[2];
+      obj[fieldMatch[1]] = fieldMatch[2] !== undefined ? fieldMatch[2] : fieldMatch[3];
     }
     rows.push(obj);
   }
@@ -46,6 +47,18 @@ async function fetchProjectList(startIndex, endIndex) {
 
 async function fetchProjectPhotos(pjtCd, startIndex, endIndex) {
   const url = `${BASE_URL}/${getApiKey()}/xml/pmisPjtPhoto/${startIndex}/${endIndex}/${pjtCd}`;
+  const res = await fetch(url);
+  const text = await res.text();
+  return parseSimpleXml(text, "row");
+}
+
+const PRJC_END_YN_LABELS = { "0": "진행", "1": "종료", "2": "예정", "3": "중지" };
+
+async function fetchConstructionWorkList(startIndex, endIndex, guName) {
+  let url = `${BASE_URL}/${getApiKey()}/xml/ListConstructionWorkService/${startIndex}/${endIndex}/`;
+  if (guName) {
+    url += `${encodeURIComponent(guName)}/`;
+  }
   const res = await fetch(url);
   const text = await res.text();
   return parseSimpleXml(text, "row");
@@ -128,6 +141,57 @@ function createServer() {
           {
             type: "text",
             text: JSON.stringify({ 출처: PROJECT_PHOTO_SOURCE, 결과: photos }, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    "search_construction_work_by_district",
+    "서울시 건설 알림이 정보(ListConstructionWorkService)를 자치구명 또는 프로젝트명 키워드로 검색한다. 자치구명이 주어지면 API 서버가 직접 해당 구만 필터링해 반환한다. 프로젝트코드, 프로젝트명, 자치구, 착수일, 사업기간, 진행상태, 사무실/현장주소, 위경도, 사업금액 등을 반환한다. " +
+      CITATION_REQUIRED_NOTICE,
+    {
+      gu_name: z.string().optional().describe("자치구명 (예: 종로구, 강남구). 지정하면 서버에서 해당 구만 필터링해 반환."),
+      biz_name: z.string().optional().describe("프로젝트명(BIZ_NM)에 포함될 키워드"),
+      limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 결과 수 (기본 10)"),
+    },
+    async ({ gu_name, biz_name, limit }) => {
+      const pageSize = 500;
+      const maxScan = 2000;
+      const results = [];
+
+      for (let start = 1; start <= maxScan; start += pageSize) {
+        const end = Math.min(start + pageSize - 1, maxScan);
+        const rows = await fetchConstructionWorkList(start, end, gu_name);
+        if (rows.length === 0) break;
+        for (const row of rows) {
+          const matchesBizName = !biz_name || (row.BIZ_NM || "").includes(biz_name);
+          if (matchesBizName) {
+            results.push({
+              프로젝트코드: row.BIZ_CD,
+              프로젝트명: row.BIZ_NM,
+              자치구: row.SGG_NM,
+              착수일: row.BIZ_BGNG_YMD,
+              사업기간: row.BIZ_PRD,
+              진행상태: PRJC_END_YN_LABELS[row.PRJC_END_YN] || row.PRJC_END_YN,
+              사무실주소: row.OFC_ADDR,
+              현장주소: row.SITE_ADDR,
+              위도: row.LAT,
+              경도: row.LNG,
+              사업금액_억원: row.TOT_PJT_AMT,
+            });
+            if (results.length >= limit) break;
+          }
+        }
+        if (results.length >= limit) break;
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ 출처: CONSTRUCTION_WORK_SOURCE, 결과: results }, null, 2),
           },
         ],
       };

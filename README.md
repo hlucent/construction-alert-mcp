@@ -14,11 +14,17 @@
 6. [ ] PlayMCP 등록 & Claude 연동 테스트
 7. [ ] 개발일지 마무리
 
+## 사용하는 데이터
+- 서울시 건설알림이 사업개요 (data.seoul.go.kr, OA-15585)
+- 서울시 건설알림이 공사사진 (data.seoul.go.kr, OA-15586)
+- 서울시 건설 알림이 정보 (ListConstructionWorkService) (data.seoul.go.kr, OA-1222)
+
 ## 도구(tool) 목록
 - `search_construction_projects` — 서울시 건설알림이(One-PMIS) 공사장 목록을 자치구명/키워드로 검색 (사업명, 위치, 발주처/시공사, 착공일, 준공예정일, 도급액, 위경도 등 반환)
 - `get_construction_project_photos` — 사업코드(PJT_CD)로 공사현장 사진 목록 조회
+- `search_construction_work_by_district` — 서울시 건설 알림이 정보(ListConstructionWorkService)를 자치구명/프로젝트명 키워드로 검색 (자치구명이 있으면 서버가 직접 해당 구만 필터링해 반환. 프로젝트코드, 프로젝트명, 착수일, 사업기간, 진행상태, 사무실/현장주소, 위경도, 사업금액 등 반환)
 
-> **출처 표기 필수**: 두 도구 모두 결과 JSON에 `출처` 필드(서울 열린데이터광장 데이터셋명)를 포함하며, 이 MCP를 사용해 답변할 때는 반드시 그 출처를 답변에 명시해야 한다. 출처 생략은 금지된다.
+> **출처 표기 필수**: 모든 도구가 결과 JSON에 `출처` 필드(서울 열린데이터광장 데이터셋명)를 포함하며, 이 MCP를 사용해 답변할 때는 반드시 그 출처를 답변에 명시해야 한다. 출처 생략은 금지된다.
 
 ## 실행 방법
 
