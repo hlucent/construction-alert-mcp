@@ -77,3 +77,12 @@
   - 두 도구 description에 새 파라미터/필드 설명 반영
   - node --check 통과, 실제 SEOUL_OPENAPI_KEY로 로컬 테스트 — min_amount=100 지정 시 100억 미만 결과 없음 확인, 공정율 0인 건 "미입력"으로 표시됨 확인, search_construction_projects 연락처 3종 정상 반환 확인
 - 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)
+
+## 2026-08-06
+- 한 일: 배포 자동화 스크립트 `deploy.ps1` 추가 (Claude Code로 진행).
+  - 그동안 세션마다 손으로 반복하던 순서(node --check → 변경사항 커밋 → git fetch/pull --rebase로 원격 동기화 → git push → flyctl deploy → 라이브 엔드포인트 초기화 요청으로 검증)를 PowerShell 스크립트 하나로 통합
+  - `-CommitMessage`(커밋할 변경사항 있을 때만 필수, 의도치 않은 커밋 방지), `-SkipSyntaxCheck`, `-SkipSmokeTest` 파라미터 지원
+  - **버그 발견 및 수정 (1차)**: 스크립트 파일을 BOM 없는 UTF-8로 저장하면 Windows PowerShell 5.1이 한글이 섞인 스크립트를 잘못 파싱해 문법 오류를 냄 → UTF-8 BOM으로 저장해 해결
+  - **버그 발견 및 수정 (2차)**: smoke test에서 `Invoke-WebRequest`가 서버의 `text/event-stream` 응답을 만나면 콘솔 프롬프트를 시도하다가 "NonInteractive mode" 오류로 실패 → `-UseBasicParsing` 플래그 추가로 해결
+  - 실제로 두 차례 스크립트를 실행해 커밋 → push → flyctl deploy → smoke test까지 전 과정이 정상 동작함을 검증 완료
+- 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)
