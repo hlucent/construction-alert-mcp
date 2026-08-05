@@ -52,6 +52,24 @@ npm start
    ```
 
 ### fly.dev 배포
+
+`deploy.ps1` 스크립트가 아래 순서를 한 번에 처리한다: `node --check`로 문법 확인 → (변경사항이 있으면) 커밋 → 원격에 새 커밋이 있으면 `git pull --rebase`로 동기화 → `git push` → `flyctl deploy` → 배포된 엔드포인트에 실제 `initialize` 요청을 보내 정상 동작 확인.
+
+```
+# 커밋할 변경사항이 있는 경우
+.\deploy.ps1 -CommitMessage "feat: add xyz tool"
+
+# 이미 커밋까지 끝난 상태라면 메시지 없이 실행
+.\deploy.ps1
+```
+
+옵션:
+- `-SkipSyntaxCheck` — `node --check` 단계 생략
+- `-SkipSmokeTest` — 배포 후 라이브 엔드포인트 검증 단계 생략
+
+커밋되지 않은 변경사항이 있는데 `-CommitMessage`를 지정하지 않으면, 의도치 않은 커밋을 막기 위해 스크립트가 변경 내역을 보여주고 중단한다.
+
+수동으로 배포만 하려면:
 ```
 flyctl deploy
 ```
