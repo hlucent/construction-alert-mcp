@@ -132,7 +132,7 @@ if (-not $SkipSmokeTest) {
             try {
                 $response = Invoke-WebRequest -Uri $url -Method Post -Body $body `
                     -Headers @{ "Content-Type" = "application/json"; "Accept" = "application/json, text/event-stream" } `
-                    -TimeoutSec 20
+                    -TimeoutSec 20 -UseBasicParsing
 
                 if ($response.Content -match '"serverInfo"') {
                     Write-Host "배포 검증 성공 - 서버가 정상 응답함" -ForegroundColor Green
