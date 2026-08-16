@@ -97,6 +97,17 @@
   - 배포는 보류 — 사용자 지시에 따라 코드/문서 변경만 하고 fly.dev에는 반영하지 않음
 - 다음 할 일: 배포 여부는 사용자가 별도로 지시할 때 진행 (`deploy.ps1 -CommitMessage "..."`)
 
+## 2026-08-16 (3)
+- 한 일: 기존 분당 3회 rate limit에 2가지 안전장치 추가 (Claude Code로 진행).
+  - 1시간 내 429 응답을 5회 이상 받은 IP는 24시간 동안 완전 차단 (in-memory `Map`, `blockedUntilByIp`)
+  - IP당 일일(rolling 24시간) 총 호출 30회 제한 초과 시 429 (in-memory `Map`, `dailyRequestLogByIp`)
+  - 일일 한도 초과나 반복 429 자체도 차단 카운트에 반영되도록 `recordRateLimitHit()` 헬퍼로 통합
+  - 모두 메모리 저장 방식 유지 — 서버(fly.io 머신) 재시작 시 차단/카운트 기록 초기화됨 (요구사항대로 허용된 동작)
+  - node --check 문법 검증 통과
+  - README.md 갱신: 분당 3회 + 일일 30회 + 반복 초과 시 24시간 차단, 3단계 제한을 모두 명시
+  - 배포는 보류 — 사용자 지시에 따라 코드/문서 변경만 하고 fly.dev에는 반영하지 않음
+- 다음 할 일: 배포 여부는 사용자가 별도로 지시할 때 진행 (`deploy.ps1 -CommitMessage "..."`)
+
 ## 2026-08-16 (2)
 - 한 일: IP 기준 rate limit 추가 (Claude Code로 진행). 이전 항목에서 인증(`?key=`) 체크를 제거해 무제한 호출 위험이 생겼는데, 이를 보완하기 위한 최소한의 안전장치.
   - `/mcp` 라우트 앞단에 in-memory 슬라이딩 윈도우 rate limiter 추가 — 같은 IP 기준 분당 3회 초과 시 429(Too Many Requests) 응답

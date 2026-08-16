@@ -3,7 +3,7 @@
 서울시 건설공사(공사장) 알림 정보를 조회하는 MCP 서버.
 
 ## 상태
-✅ fly.dev 배포 완료 — https://construction-alert-mcp-hlucent.fly.dev/mcp (인증 없음, URL만으로 접속 가능. 단 IP당 분당 3회 rate limit 있음)
+✅ fly.dev 배포 완료 — https://construction-alert-mcp-hlucent.fly.dev/mcp (인증 없음, URL만으로 접속 가능. 단 IP당 분당 3회 rate limit + 일일 30회 제한 + 반복 초과 시 24시간 차단 있음)
 
 ## 진행 순서
 1. [x] 저장소 & 개발일지 세팅
@@ -44,7 +44,12 @@ https://construction-alert-mcp-hlucent.fly.dev/mcp
 ```
 서울 열린데이터광장 호출용 키(`SEOUL_OPENAPI_KEY`)는 서버가 fly secrets로 자체 보유하며, 사용자가 별도로 키를 발급받거나 URL에 붙일 필요가 없다.
 
-인증이 없는 대신 같은 IP 기준 **분당 3회**로 호출을 제한한다. 초과 시 429(Too Many Requests) 응답을 반환한다.
+인증이 없는 대신 같은 IP 기준으로 아래 3단계 제한을 적용한다. 초과 시 429(Too Many Requests) 응답을 반환한다.
+- 분당 3회 초과 호출 제한
+- IP당 일일 총 호출 30회 제한
+- 1시간 내 429 응답을 5회 이상 받은 IP는 24시간 동안 차단
+
+모든 기록은 메모리(서버 프로세스 내) 저장이며, 서버가 재시작되면 초기화된다.
 
 ### fly.dev 배포
 

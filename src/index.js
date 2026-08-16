@@ -293,13 +293,63 @@ app.use(express.json());
 
 // 같은 IP 기준 분당 3회 초과 호출을 429로 차단하는 간단한 슬라이딩 윈도우 rate limiter.
 // 인증(?key=) 없이 URL만으로 접속 가능해진 대신, 무제한 호출을 막기 위한 최소한의 안전장치.
+// 추가로: (1) 1시간 내 429를 5회 이상 받은 IP는 24시간 차단, (2) IP당 일일 총 호출 30회 제한.
+// 모두 메모리 저장이라 서버 재시작 시 초기화됨(의도된 동작).
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 3;
 const requestLogByIp = new Map();
 
+const BLOCK_THRESHOLD_WINDOW_MS = 60 * 60 * 1000; // 1시간
+const BLOCK_THRESHOLD_COUNT = 5; // 1시간 내 429 5회 이상
+const BLOCK_DURATION_MS = 24 * 60 * 60 * 1000; // 24시간 차단
+const rateLimitHitLogByIp = new Map(); // IP -> 429 발생 timestamp 배열
+const blockedUntilByIp = new Map(); // IP -> 차단 해제 시각(ms)
+
+const DAILY_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24시간(달력일 아님, rolling window)
+const DAILY_LIMIT_MAX_REQUESTS = 30;
+const dailyRequestLogByIp = new Map(); // IP -> 요청 timestamp 배열(24시간 이내)
+
+function recordRateLimitHit(ip, now) {
+  const hits = (rateLimitHitLogByIp.get(ip) || []).filter(
+    (ts) => now - ts < BLOCK_THRESHOLD_WINDOW_MS
+  );
+  hits.push(now);
+  rateLimitHitLogByIp.set(ip, hits);
+
+  if (hits.length >= BLOCK_THRESHOLD_COUNT) {
+    blockedUntilByIp.set(ip, now + BLOCK_DURATION_MS);
+    rateLimitHitLogByIp.delete(ip);
+  }
+}
+
 app.use("/mcp", (req, res, next) => {
   const ip = req.ip;
   const now = Date.now();
+
+  const blockedUntil = blockedUntilByIp.get(ip);
+  if (blockedUntil) {
+    if (now < blockedUntil) {
+      res
+        .status(429)
+        .type("text/plain; charset=utf-8")
+        .send("반복적인 과다 요청으로 24시간 동안 차단되었습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+    blockedUntilByIp.delete(ip);
+  }
+
+  const dailyTimestamps = (dailyRequestLogByIp.get(ip) || []).filter(
+    (ts) => now - ts < DAILY_LIMIT_WINDOW_MS
+  );
+  if (dailyTimestamps.length >= DAILY_LIMIT_MAX_REQUESTS) {
+    res
+      .status(429)
+      .type("text/plain; charset=utf-8")
+      .send("일일 호출 한도(30회)를 초과했습니다. 24시간 후 다시 시도해주세요.");
+    recordRateLimitHit(ip, now);
+    return;
+  }
+
   const timestamps = (requestLogByIp.get(ip) || []).filter(
     (ts) => now - ts < RATE_LIMIT_WINDOW_MS
   );
@@ -309,11 +359,14 @@ app.use("/mcp", (req, res, next) => {
       .status(429)
       .type("text/plain; charset=utf-8")
       .send("요청이 너무 많습니다. 1분에 최대 3회까지 호출할 수 있습니다. 잠시 후 다시 시도해주세요.");
+    recordRateLimitHit(ip, now);
     return;
   }
 
   timestamps.push(now);
   requestLogByIp.set(ip, timestamps);
+  dailyTimestamps.push(now);
+  dailyRequestLogByIp.set(ip, dailyTimestamps);
   next();
 });
 
