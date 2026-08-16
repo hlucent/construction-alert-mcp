@@ -86,3 +86,24 @@
   - **버그 발견 및 수정 (2차)**: smoke test에서 `Invoke-WebRequest`가 서버의 `text/event-stream` 응답을 만나면 콘솔 프롬프트를 시도하다가 "NonInteractive mode" 오류로 실패 → `-UseBasicParsing` 플래그 추가로 해결
   - 실제로 두 차례 스크립트를 실행해 커밋 → push → flyctl deploy → smoke test까지 전 과정이 정상 동작함을 검증 완료
 - 다음 할 일: 미정 (필요 시 추가 도구/데이터소스 확장 검토)
+
+## 2026-08-16
+- 한 일: `?key=...` 쿼리 파라미터 접속 인증 로직 완전 제거 (Claude Code로 진행, 사용자 명시 요청·위험 확인 후 진행).
+  - `/mcp` 라우트 앞단의 401 인증 미들웨어 삭제, 요청별 키를 저장하던 `AsyncLocalStorage` 제거
+  - `getApiKey()`가 이제 서울시 오픈API 호출용 서버 키(`SEOUL_OPENAPI_KEY`, fly secrets)를 직접 반환하도록 변경 — 사용자별 키가 아니라 서버 공용 키로 모든 호출 처리
+  - README.md 갱신: 연결 URL이 `?key=...` 없이 `https://construction-alert-mcp-hlucent.fly.dev/mcp`로 단순화됐음을 반영, 사용자별 키 발급 안내 섹션 삭제
+  - node --check 문법 검증 통과
+  - **위험 인지**: 인증 제거로 URL만 알면 누구나 무제한 호출 가능해져 서울시 오픈API 쿼터 소모·fly.io 비용 노출 위험이 생김 (사용자에게 사전 확인 후 진행)
+  - 배포는 보류 — 사용자 지시에 따라 코드/문서 변경만 하고 fly.dev에는 반영하지 않음
+- 다음 할 일: 배포 여부는 사용자가 별도로 지시할 때 진행 (`deploy.ps1 -CommitMessage "..."`)
+
+## 2026-08-16 (2)
+- 한 일: IP 기준 rate limit 추가 (Claude Code로 진행). 이전 항목에서 인증(`?key=`) 체크를 제거해 무제한 호출 위험이 생겼는데, 이를 보완하기 위한 최소한의 안전장치.
+  - `/mcp` 라우트 앞단에 in-memory 슬라이딩 윈도우 rate limiter 추가 — 같은 IP 기준 분당 3회 초과 시 429(Too Many Requests) 응답
+  - 외부 패키지 없이 `Map`으로 IP별 요청 타임스탬프를 관리 (fly.io 머신 재시작/스케일 시 초기화됨 — 이 규모 프로젝트에는 충분하다고 판단)
+  - fly.dev는 리버스 프록시 뒤에 있어 `app.set("trust proxy", true)`를 추가해야 `req.ip`가 실제 클라이언트 IP(X-Forwarded-For 기반)를 반영함
+  - node --check 문법 검증 통과
+  - 로컬에서 실제 동작 확인: 같은 IP로 연속 4회 initialize 요청 전송 → 1~3번째 200, 4번째 429 확인
+  - README.md 갱신: "인증 없음, 단 IP당 분당 3회 제한" 명시
+  - 배포는 보류 — 사용자 지시에 따라 코드/문서 변경만 하고 fly.dev에는 반영하지 않음
+- 다음 할 일: 배포 여부는 사용자가 별도로 지시할 때 진행 (`deploy.ps1 -CommitMessage "..."`)

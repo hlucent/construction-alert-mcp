@@ -3,7 +3,7 @@
 서울시 건설공사(공사장) 알림 정보를 조회하는 MCP 서버.
 
 ## 상태
-✅ fly.dev 배포 완료 — https://construction-alert-mcp-hlucent.fly.dev/mcp
+✅ fly.dev 배포 완료 — https://construction-alert-mcp-hlucent.fly.dev/mcp (인증 없음, URL만으로 접속 가능. 단 IP당 분당 3회 rate limit 있음)
 
 ## 진행 순서
 1. [x] 저장소 & 개발일지 세팅
@@ -36,20 +36,15 @@ npm install
 npm start
 ```
 서버는 `http://localhost:8080/mcp` (Streamable HTTP transport)에서 요청을 받는다.
-접속 시 반드시 `?key=본인의_서울열린데이터광장_인증키`를 URL에 붙여야 한다 (아래 참고).
 
-### 다른 사용자가 자기 API 키로 쓰는 방법
-이 서버는 서버 공용 키를 공유하지 않는다. 각 사용자가 반드시 자신의 서울 열린데이터광장 인증키를 URL 쿼리 파라미터로 넣어야 동작하며, 요청별 키는 Node.js `AsyncLocalStorage`로 격리되어 여러 사용자가 동시에 접속해도 서로 섞이지 않는다.
+### 커넥터 연결 방법
+이 서버는 접속 인증이 없다. URL만 알면 누구나 바로 연결할 수 있다.
+```
+https://construction-alert-mcp-hlucent.fly.dev/mcp
+```
+서울 열린데이터광장 호출용 키(`SEOUL_OPENAPI_KEY`)는 서버가 fly secrets로 자체 보유하며, 사용자가 별도로 키를 발급받거나 URL에 붙일 필요가 없다.
 
-1. [data.seoul.go.kr](https://data.seoul.go.kr)에서 회원가입 후 "인증키 관리" 메뉴에서 본인 인증키를 발급받는다.
-2. MCP 클라이언트 설정에서 이 서버에 연결할 때 URL에 `?key=본인키`를 붙인다.
-   ```
-   https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인이_발급받은_인증키
-   ```
-3. `?key=`가 없으면 서버는 요청을 처리하지 않고 401과 함께 아래 안내를 반환한다.
-   ```
-   API 키가 필요합니다. ?key=본인의_서울열린데이터광장_인증키를 URL에 추가해주세요.
-   ```
+인증이 없는 대신 같은 IP 기준 **분당 3회**로 호출을 제한한다. 초과 시 429(Too Many Requests) 응답을 반환한다.
 
 ### fly.dev 배포
 

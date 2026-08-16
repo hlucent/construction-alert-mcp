@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -14,12 +13,8 @@ const PROJECT_PHOTO_SOURCE = "서울 열린데이터광장 - 서울시 건설알
 const CONSTRUCTION_WORK_SOURCE = "서울 열린데이터광장 - 서울시 건설 알림이 정보 (data.seoul.go.kr, OA-1222)";
 const CONSTRUCTION_PROGRESS_SOURCE = "서울 열린데이터광장 - 서울시 건설공사 추진 현황 (data.seoul.go.kr, OA-2540)";
 
-// 요청별 API 키 — ?key=... 쿼리 파라미터에서 추출한 값을 저장. 요청마다 격리되어 서로 섞이지 않는다.
-// 서버 공용 키로 폴백하지 않는다 — 각자 자기 키를 URL에 넣어야만 동작한다.
-const apiKeyStorage = new AsyncLocalStorage();
-
 function getApiKey() {
-  return apiKeyStorage.getStore()?.apiKey;
+  return process.env.SEOUL_OPENAPI_KEY;
 }
 
 function parseSimpleXml(xml, rowTag) {
@@ -293,29 +288,33 @@ function createServer() {
 }
 
 const app = express();
+app.set("trust proxy", true);
 app.use(express.json());
 
-// ?key=... 쿼리 파라미터에서 서울 API 키를 추출해 요청 스코프에 저장한다.
-// 키가 없으면 HTTP 401로 즉시 차단하고 MCP 서버로 전달하지 않는다.
-// 연결 URL 예시: https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인서울API키
-app.use("/mcp", (req, res, next) => {
-  const apiKey = (req.query.key || "").toString().trim();
+// 같은 IP 기준 분당 3회 초과 호출을 429로 차단하는 간단한 슬라이딩 윈도우 rate limiter.
+// 인증(?key=) 없이 URL만으로 접속 가능해진 대신, 무제한 호출을 막기 위한 최소한의 안전장치.
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const RATE_LIMIT_MAX_REQUESTS = 3;
+const requestLogByIp = new Map();
 
-  if (!apiKey) {
+app.use("/mcp", (req, res, next) => {
+  const ip = req.ip;
+  const now = Date.now();
+  const timestamps = (requestLogByIp.get(ip) || []).filter(
+    (ts) => now - ts < RATE_LIMIT_WINDOW_MS
+  );
+
+  if (timestamps.length >= RATE_LIMIT_MAX_REQUESTS) {
     res
-      .status(401)
+      .status(429)
       .type("text/plain; charset=utf-8")
-      .send(
-        "API 키가 필요합니다. ?key=본인의_서울열린데이터광장_인증키를 URL에 추가해주세요.\n\n" +
-          "연결 URL 형식:\n" +
-          "  https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인서울API키\n\n" +
-          "API 키 발급:\n" +
-          "  https://data.seoul.go.kr → 회원가입 → 인증키 관리\n"
-      );
+      .send("요청이 너무 많습니다. 1분에 최대 3회까지 호출할 수 있습니다. 잠시 후 다시 시도해주세요.");
     return;
   }
 
-  apiKeyStorage.run({ apiKey }, next);
+  timestamps.push(now);
+  requestLogByIp.set(ip, timestamps);
+  next();
 });
 
 // stateless 모드에서는 요청마다 새 McpServer/transport를 만들어야 한다.
