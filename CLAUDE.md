@@ -33,7 +33,7 @@
 - 요청별 API 키 격리: AsyncLocalStorage 사용
 - 인증 방식: 쿼리 파라미터 ?key= (키 없으면 401로 강제 거부)
 - CDATA XML 파싱 이슈 수정 완료
-- fly.toml: 앱 이름 construction-alert-mcp-hlucent, Dockerfile 빌드,
+- fly.toml: 앱 이름 <앱이름>, Dockerfile 빌드,
   internal_port 8080, auto_stop/start_machines 켜짐
 - Dockerfile: node:20-slim → npm ci --omit=dev → node src/index.js 실행
 - SEOUL_OPENAPI_KEY는 fly secrets로 이미 설정되어 있음. 로컬 .env는 테스트 전용
