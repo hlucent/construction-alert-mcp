@@ -5,7 +5,7 @@
 제공하는 프로젝트. Claude.ai에서 커넥터로 연결해 자연어로 서울시 공사 현황을
 검색/조회할 수 있게 해준다.
 
-- 배포 주소: https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인키
+- 배포 주소: https://<앱이름>.fly.dev/mcp?key=본인키
 - GitHub: hlucent/construction-alert-mcp
 - **실제 작업 폴더(확정): C:\Users\hwang\project\construction-alert-mcp**
   (2026-08-05 확인: .git 존재, origin이 github.com/hlucent/construction-alert-mcp로
