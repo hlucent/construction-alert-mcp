@@ -3,7 +3,7 @@
 서울시 건설공사(공사장) 알림 정보를 조회하는 MCP 서버.
 
 ## 상태
-✅ fly.dev 배포 완료 — https://construction-alert-mcp-hlucent.fly.dev/mcp
+✅ fly.dev 배포 완료 — https://<앱이름>.fly.dev/mcp
 
 ## 진행 순서
 1. [x] 저장소 & 개발일지 세팅
@@ -44,7 +44,7 @@ npm start
 1. [data.seoul.go.kr](https://data.seoul.go.kr)에서 회원가입 후 "인증키 관리" 메뉴에서 본인 인증키를 발급받는다.
 2. MCP 클라이언트 설정에서 이 서버에 연결할 때 URL에 `?key=본인키`를 붙인다.
    ```
-   https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인이_발급받은_인증키
+   https://<앱이름>.fly.dev/mcp?key=본인이_발급받은_인증키
    ```
 3. `?key=`가 없으면 서버는 요청을 처리하지 않고 401과 함께 아래 안내를 반환한다.
    ```
