@@ -323,22 +323,24 @@ app.use("/mcp", (req, res, next) => {
   next();
 });
 
-// 같은 IP 기준 분당 3회 초과 호출을 429로 차단하는 간단한 슬라이딩 윈도우 rate limiter.
+// 같은 IP 기준 분당 30회 초과 호출을 429로 차단하는 간단한 슬라이딩 윈도우 rate limiter.
 // 인증(?key=)을 통과한 요청에 한해 무제한 호출을 막기 위한 최소한의 안전장치.
-// 추가로: (1) 1시간 내 429를 5회 이상 받은 IP는 24시간 차단, (2) IP당 일일 총 호출 30회 제한.
+// 2026-08-25부터 개인 전용 사용 기준으로 완화(?key= 인증이 이미 걸려 있어 rate limit은
+// 실수로 반복 호출해도 안 막히는 수준이면 충분): (1) 1시간 내 429를 20회 이상 받은 IP는
+// 24시간 차단, (2) IP당 일일 총 호출 1000회 제한.
 // 모두 메모리 저장이라 서버 재시작 시 초기화됨(의도된 동작).
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT_MAX_REQUESTS = 3;
+const RATE_LIMIT_MAX_REQUESTS = 30;
 const requestLogByIp = new Map();
 
 const BLOCK_THRESHOLD_WINDOW_MS = 60 * 60 * 1000; // 1시간
-const BLOCK_THRESHOLD_COUNT = 5; // 1시간 내 429 5회 이상
+const BLOCK_THRESHOLD_COUNT = 20; // 1시간 내 429 20회 이상
 const BLOCK_DURATION_MS = 24 * 60 * 60 * 1000; // 24시간 차단
 const rateLimitHitLogByIp = new Map(); // IP -> 429 발생 timestamp 배열
 const blockedUntilByIp = new Map(); // IP -> 차단 해제 시각(ms)
 
 const DAILY_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24시간(달력일 아님, rolling window)
-const DAILY_LIMIT_MAX_REQUESTS = 30;
+const DAILY_LIMIT_MAX_REQUESTS = 1000;
 const dailyRequestLogByIp = new Map(); // IP -> 요청 timestamp 배열(24시간 이내)
 
 function recordRateLimitHit(ip, now) {
@@ -377,7 +379,7 @@ app.use("/mcp", (req, res, next) => {
     res
       .status(429)
       .type("text/plain; charset=utf-8")
-      .send("일일 호출 한도(30회)를 초과했습니다. 24시간 후 다시 시도해주세요.");
+      .send("일일 호출 한도(1000회)를 초과했습니다. 24시간 후 다시 시도해주세요.");
     recordRateLimitHit(ip, now);
     return;
   }
@@ -390,7 +392,7 @@ app.use("/mcp", (req, res, next) => {
     res
       .status(429)
       .type("text/plain; charset=utf-8")
-      .send("요청이 너무 많습니다. 1분에 최대 3회까지 호출할 수 있습니다. 잠시 후 다시 시도해주세요.");
+      .send("요청이 너무 많습니다. 1분에 최대 30회까지 호출할 수 있습니다. 잠시 후 다시 시도해주세요.");
     recordRateLimitHit(ip, now);
     return;
   }
