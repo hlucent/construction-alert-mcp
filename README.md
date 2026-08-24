@@ -3,7 +3,7 @@
 서울시 건설공사(공사장) 알림 정보를 조회하는 MCP 서버.
 
 ## 상태
-✅ fly.dev 배포 완료 — https://construction-alert-mcp-hlucent.fly.dev/mcp (인증 없음, URL만으로 접속 가능. 단 IP당 분당 3회 rate limit + 일일 30회 제한 + 반복 초과 시 24시간 차단 있음)
+✅ fly.dev 배포 완료 — `<앱이름>.fly.dev/mcp` (2026-08-24부터 `?key=` 인증 필수. 아래 "커넥터 연결 방법" 참고)
 
 ## 진행 순서
 1. [x] 저장소 & 개발일지 세팅
@@ -38,13 +38,13 @@ npm start
 서버는 `http://localhost:8080/mcp` (Streamable HTTP transport)에서 요청을 받는다.
 
 ### 커넥터 연결 방법
-이 서버는 접속 인증이 없다. URL만 알면 누구나 바로 연결할 수 있다.
+이 서버는 `?key=` 쿼리 파라미터로 접근을 제한한다. 올바른 키 없이는 401로 거부된다.
 ```
-https://construction-alert-mcp-hlucent.fly.dev/mcp
+https://<앱이름>.fly.dev/mcp?key=본인의_MCP_ACCESS_KEY
 ```
-서울 열린데이터광장 호출용 키(`SEOUL_OPENAPI_KEY`)는 서버가 fly secrets로 자체 보유하며, 사용자가 별도로 키를 발급받거나 URL에 붙일 필요가 없다.
+`MCP_ACCESS_KEY`는 이 서버 자체에 접근하기 위한 전용 비밀키로, 서버가 fly secrets로 보유한 값과 요청의 `?key=` 값이 일치해야 통과한다. 서울 열린데이터광장 호출용 키(`SEOUL_OPENAPI_KEY`)와는 별개다 — 그 키는 서버가 업스트림 API를 호출할 때만 쓰이며 사용자가 URL에 붙일 필요가 없다.
 
-인증이 없는 대신 같은 IP 기준으로 아래 3단계 제한을 적용한다. 초과 시 429(Too Many Requests) 응답을 반환한다.
+인증을 통과한 요청에 대해서는 같은 IP 기준으로 아래 3단계 제한을 추가로 적용한다. 초과 시 429(Too Many Requests) 응답을 반환한다.
 - 분당 3회 초과 호출 제한
 - IP당 일일 총 호출 30회 제한
 - 1시간 내 429 응답을 5회 이상 받은 IP는 24시간 동안 차단

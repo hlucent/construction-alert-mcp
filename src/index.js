@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -291,8 +292,39 @@ const app = express();
 app.set("trust proxy", true);
 app.use(express.json());
 
+// 서버 전용 접근 비밀키(MCP_ACCESS_KEY) 검사.
+// SEOUL_OPENAPI_KEY(서울시 업스트림 API 호출용)와는 별개의 키다 — 이 키는
+// "이 MCP 서버 자체에 접근할 수 있는 사람인가"만 판별한다.
+// rate limiter보다 먼저 실행해 인증 실패 요청이 rate limit 카운터를 소모하지
+// 않도록 한다(무단 접속 시도로 정상 사용자가 차단당하는 것을 방지).
+function timingSafeStringEqual(a, b) {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return timingSafeEqual(bufA, bufB);
+}
+
+app.use("/mcp", (req, res, next) => {
+  const expectedKey = process.env.MCP_ACCESS_KEY;
+  if (!expectedKey) {
+    res
+      .status(500)
+      .type("text/plain; charset=utf-8")
+      .send("서버 설정 오류: MCP_ACCESS_KEY가 설정되지 않았습니다.");
+    return;
+  }
+
+  const providedKey = (req.query.key || "").toString();
+  if (!providedKey || !timingSafeStringEqual(providedKey, expectedKey)) {
+    res.status(401).type("text/plain; charset=utf-8").send("인증 실패: 올바른 ?key=가 필요합니다.");
+    return;
+  }
+
+  next();
+});
+
 // 같은 IP 기준 분당 3회 초과 호출을 429로 차단하는 간단한 슬라이딩 윈도우 rate limiter.
-// 인증(?key=) 없이 URL만으로 접속 가능해진 대신, 무제한 호출을 막기 위한 최소한의 안전장치.
+// 인증(?key=)을 통과한 요청에 한해 무제한 호출을 막기 위한 최소한의 안전장치.
 // 추가로: (1) 1시간 내 429를 5회 이상 받은 IP는 24시간 차단, (2) IP당 일일 총 호출 30회 제한.
 // 모두 메모리 저장이라 서버 재시작 시 초기화됨(의도된 동작).
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;

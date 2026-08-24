@@ -5,7 +5,7 @@
 제공하는 프로젝트. Claude.ai에서 커넥터로 연결해 자연어로 서울시 공사 현황을
 검색/조회할 수 있게 해준다.
 
-- 배포 주소: https://construction-alert-mcp-hlucent.fly.dev/mcp?key=본인키
+- 배포 주소: `<앱이름>.fly.dev/mcp?key=본인의_MCP_ACCESS_KEY` (실제 앱 이름은 fly.toml 참고 — GitHub에는 올리지 않음, 2026-08-24부터)
 - GitHub: hlucent/construction-alert-mcp
 - **실제 작업 폴더(확정): C:\Users\hwang\project\construction-alert-mcp**
   (2026-08-05 확인: .git 존재, origin이 github.com/hlucent/construction-alert-mcp로
@@ -30,13 +30,23 @@
 
 ## 아키텍처 핵심 사항
 - HTTP 기반 StreamableHTTPServerTransport 사용 (fly.dev 배포 필수 조건, stdio 아님)
-- 요청별 API 키 격리: AsyncLocalStorage 사용
-- 인증 방식: 쿼리 파라미터 ?key= (키 없으면 401로 강제 거부)
+- 인증 방식(2026-08-24 재도입): 쿼리 파라미터 `?key=`를 `MCP_ACCESS_KEY`(서버 전용
+  접근 비밀키)와 timingSafeEqual로 비교. 키 없거나 틀리면 401로 강제 거부.
+  rate limit 미들웨어보다 먼저 실행되어, 인증 실패 요청은 rate limit 카운터를
+  소모하지 않는다.
+  (과거 2026-08-16 커밋 d29cc50에서 사용 편의성을 위해 ?key= 인증을 한 번
+  제거했었으나, 2026-08-24에 "타인 접속 완전 차단"이 목표로 바뀌며 다시 추가함.
+  이번엔 "사용자가 자기 서울API키를 제공"하는 방식이 아니라 "서버가 전용
+  비밀키를 자체 보유하고 대조"하는 방식으로 설계가 다름.)
+- SEOUL_OPENAPI_KEY(서울시 업스트림 API 호출용)와 MCP_ACCESS_KEY(이 서버
+  자체 접근용)는 서로 다른 목적의 별개 키. 둘 다 fly secrets로 서버가 보유.
 - CDATA XML 파싱 이슈 수정 완료
-- fly.toml: 앱 이름 construction-alert-mcp-hlucent, Dockerfile 빌드,
+- fly.toml: 앱 이름은 2026-08-24부터 GitHub에 커밋하지 않음(.gitignore 처리) —
+  저장소명만으로 실제 fly.io 앱 주소를 유추할 수 없게 하기 위함. 로컬 fly.toml에서
+  실제 값 확인.
   internal_port 8080, auto_stop/start_machines 켜짐
 - Dockerfile: node:20-slim → npm ci --omit=dev → node src/index.js 실행
-- SEOUL_OPENAPI_KEY는 fly secrets로 이미 설정되어 있음. 로컬 .env는 테스트 전용
+- 로컬 .env는 테스트 전용 (SEOUL_OPENAPI_KEY, MCP_ACCESS_KEY 둘 다 필요)
 
 ## 요청 작성 기본 틀 — 접수표 5칸
 Claude Code에게 새 작업을 요청할 때는 항상 아래 5가지를 채워서 지시할 것.

@@ -108,6 +108,22 @@
   - 배포는 보류 — 사용자 지시에 따라 코드/문서 변경만 하고 fly.dev에는 반영하지 않음
 - 다음 할 일: 배포 여부는 사용자가 별도로 지시할 때 진행 (`deploy.ps1 -CommitMessage "..."`)
 
+## 2026-08-24 — fly.io 앱 주소 변경 (보안 강화)
+
+기존 fly.io 앱이 GitHub 저장소명과 동일하거나 유사한 이름으로 배포되어 있어, 저장소명만
+보면 실제 서비스 URL을 그대로 유추할 수 있는 상태였다. 이를 막기 위해 fly.io 앱을 랜덤
+접미사가 붙은 새 이름(construction-u7fce4)으로 재배포하고, 기존 앱(construction-alert-mcp-hlucent)은
+fly apps destroy로 완전히 삭제했다. fly.toml의 app 값과 README의 URL도 신주소 기준으로
+갱신했다.
+
+- 추가로: URL 은닉만으로는 "타인의 접속 완전 차단"이 근본적으로 해결되지 않는다고 판단해
+  `?key=` 인증도 재도입함. 2026-08-16(2)에서 사용 편의성을 위해 제거했던 것과 달리, 이번엔
+  "이 서버 자체 접근용 전용 비밀키"(`MCP_ACCESS_KEY`)를 서버가 fly secrets로 보유하고
+  요청의 `?key=`와 `timingSafeEqual`로 비교하는 방식. 인증 미들웨어를 rate limit보다 앞에
+  둬서, 인증 실패 요청이 rate limit 카운터를 소모해 정상 사용자가 차단되는 상황을 방지.
+  로컬에서 키 없음/틀린 키 401, 올바른 키 통과(405는 GET 미지원이라 정상)까지 확인.
+  fly.toml은 이 시점부터 .gitignore 처리 — 앱 이름을 GitHub에 올리지 않음.
+
 ## 2026-08-16 (2)
 - 한 일: IP 기준 rate limit 추가 (Claude Code로 진행). 이전 항목에서 인증(`?key=`) 체크를 제거해 무제한 호출 위험이 생겼는데, 이를 보완하기 위한 최소한의 안전장치.
   - `/mcp` 라우트 앞단에 in-memory 슬라이딩 윈도우 rate limiter 추가 — 같은 IP 기준 분당 3회 초과 시 429(Too Many Requests) 응답
