@@ -35,11 +35,39 @@ function parseSimpleXml(xml, rowTag) {
   return rows;
 }
 
+function parseTotalCount(xml) {
+  const match = xml.match(/<list_total_count>(\d+)<\/list_total_count>/);
+  return match ? Number(match[1]) : null;
+}
+
+// API 한 번 호출당 최대 1000건(ERROR-336) 규칙에 따라 START_INDEX~END_INDEX 구간을
+// 1000건씩 나눠 자동으로 여러 번 호출하며, API가 첫 응답에서 보고하는
+// list_total_count에 도달할 때까지 전량을 스캔한다("일부만 훑는" max_scan 개념 제거).
+// fetchPage(start, end)는 { rows, totalCount } 형태를 반환해야 한다.
+// onRows(rows)는 매칭되는 행을 자신의 결과 배열에 채워 넣고, limit에 도달하면
+// true를 반환해 스캔을 조기 종료시킨다.
+async function scanAllPages(fetchPage, onRows) {
+  const pageSize = 1000;
+  let start = 1;
+  let totalCount = null;
+
+  while (totalCount === null || start <= totalCount) {
+    const end = start + pageSize - 1;
+    const { rows, totalCount: reportedTotal } = await fetchPage(start, end);
+    if (totalCount === null) totalCount = reportedTotal ?? rows.length;
+    if (rows.length === 0) break;
+
+    if (onRows(rows)) break;
+
+    start += pageSize;
+  }
+}
+
 async function fetchProjectList(startIndex, endIndex) {
   const url = `${BASE_URL}/${getApiKey()}/xml/pmisPjtList/${startIndex}/${endIndex}`;
   const res = await fetch(url);
   const text = await res.text();
-  return parseSimpleXml(text, "row");
+  return { rows: parseSimpleXml(text, "row"), totalCount: parseTotalCount(text) };
 }
 
 async function fetchProjectPhotos(pjtCd, startIndex, endIndex) {
@@ -58,7 +86,7 @@ async function fetchConstructionWorkList(startIndex, endIndex, guName) {
   }
   const res = await fetch(url);
   const text = await res.text();
-  return parseSimpleXml(text, "row");
+  return { rows: parseSimpleXml(text, "row"), totalCount: parseTotalCount(text) };
 }
 
 function formatRate(value) {
@@ -78,7 +106,7 @@ async function fetchConstructionProgress(startIndex, endIndex, bizName, instName
   const url = `${BASE_URL}/${getApiKey()}/xml/ListOnePMISBizInfo/${segments.join("/")}/`;
   const res = await fetch(url);
   const text = await res.text();
-  return parseSimpleXml(text, "row");
+  return { rows: parseSimpleXml(text, "row"), totalCount: parseTotalCount(text) };
 }
 
 function createServer() {
@@ -94,42 +122,40 @@ function createServer() {
     {
       gu_name: z.string().optional().describe("자치구명 (예: 서초구, 강남구). 생략하면 전체에서 검색."),
       keyword: z.string().optional().describe("사업명에 포함될 키워드 (예: 도로, 터널, 지하차도)"),
-      max_scan: z.number().int().min(1).max(2000).default(500).describe("검색을 위해 훑어볼 최대 레코드 수 (기본 500)"),
-      limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 결과 수 (기본 10)"),
+      limit: z.number().int().min(1).max(1000).default(10).describe("반환할 최대 결과 수 (기본 10). 검색은 항상 전체 데이터를 대상으로 하며, limit은 반환 개수만 제한한다."),
     },
-    async ({ gu_name, keyword, max_scan, limit }) => {
-      const pageSize = 500;
+    async ({ gu_name, keyword, limit }) => {
       const results = [];
-      for (let start = 1; start <= max_scan; start += pageSize) {
-        const end = Math.min(start + pageSize - 1, max_scan);
-        const rows = await fetchProjectList(start, end);
-        if (rows.length === 0) break;
-        for (const row of rows) {
-          const matchesGu = !gu_name || row.GU_NAME === gu_name;
-          const matchesKeyword = !keyword || (row.PJT_NAME || "").includes(keyword);
-          if (matchesGu && matchesKeyword) {
-            results.push({
-              사업코드: row.PJT_CD,
-              사업명: row.PJT_NAME,
-              자치구: row.GU_NAME,
-              공사위치: row.OFFICE_ADDR,
-              착공일: row.PJT_BGN1_DATE,
-              준공예정일: row.PJT_COMPL_PREARR_DATE,
-              도급액_억원: row.TOT_CNTRT_AMT,
-              진행상태: row.PJT_FIN_YN_NM,
-              발주처: row.ORG_1,
-              시공사: row.ORG_3,
-              위도: row.LAT,
-              경도: row.LNG,
-              발주처_연락처: row.TEL_1,
-              건설사업관리단_연락처: row.TEL_2,
-              시공사_연락처: row.TEL_3,
-            });
-            if (results.length >= limit) break;
+      await scanAllPages(
+        (start, end) => fetchProjectList(start, end),
+        (rows) => {
+          for (const row of rows) {
+            const matchesGu = !gu_name || row.GU_NAME === gu_name;
+            const matchesKeyword = !keyword || (row.PJT_NAME || "").includes(keyword);
+            if (matchesGu && matchesKeyword) {
+              results.push({
+                사업코드: row.PJT_CD,
+                사업명: row.PJT_NAME,
+                자치구: row.GU_NAME,
+                공사위치: row.OFFICE_ADDR,
+                착공일: row.PJT_BGN1_DATE,
+                준공예정일: row.PJT_COMPL_PREARR_DATE,
+                도급액_억원: row.TOT_CNTRT_AMT,
+                진행상태: row.PJT_FIN_YN_NM,
+                발주처: row.ORG_1,
+                시공사: row.ORG_3,
+                위도: row.LAT,
+                경도: row.LNG,
+                발주처_연락처: row.TEL_1,
+                건설사업관리단_연락처: row.TEL_2,
+                시공사_연락처: row.TEL_3,
+              });
+              if (results.length >= limit) return true;
+            }
           }
+          return false;
         }
-        if (results.length >= limit) break;
-      }
+      );
       return {
         content: [
           {
@@ -146,7 +172,7 @@ function createServer() {
     "사업코드(PJT_CD)로 서울시 건설알림이 공사현장 사진 목록을 조회한다. " + CITATION_REQUIRED_NOTICE,
     {
       pjt_cd: z.string().describe("사업코드 (search_construction_projects 결과의 사업코드 값)"),
-      limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 사진 수 (기본 10)"),
+      limit: z.number().int().min(1).max(1000).default(10).describe("반환할 최대 사진 수 (기본 10)"),
     },
     async ({ pjt_cd, limit }) => {
       const rows = await fetchProjectPhotos(pjt_cd, 1, limit);
@@ -174,38 +200,36 @@ function createServer() {
     {
       gu_name: z.string().optional().describe("자치구명 (예: 종로구, 강남구). 지정하면 서버에서 해당 구만 필터링해 반환."),
       biz_name: z.string().optional().describe("프로젝트명(BIZ_NM)에 포함될 키워드"),
-      limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 결과 수 (기본 10)"),
+      limit: z.number().int().min(1).max(1000).default(10).describe("반환할 최대 결과 수 (기본 10). 검색은 항상 전체 데이터를 대상으로 하며, limit은 반환 개수만 제한한다."),
     },
     async ({ gu_name, biz_name, limit }) => {
-      const pageSize = 500;
-      const maxScan = 2000;
       const results = [];
 
-      for (let start = 1; start <= maxScan; start += pageSize) {
-        const end = Math.min(start + pageSize - 1, maxScan);
-        const rows = await fetchConstructionWorkList(start, end, gu_name);
-        if (rows.length === 0) break;
-        for (const row of rows) {
-          const matchesBizName = !biz_name || (row.BIZ_NM || "").includes(biz_name);
-          if (matchesBizName) {
-            results.push({
-              프로젝트코드: row.BIZ_CD,
-              프로젝트명: row.BIZ_NM,
-              자치구: row.SGG_NM,
-              착수일: row.BIZ_BGNG_YMD,
-              사업기간: row.BIZ_PRD,
-              진행상태: PRJC_END_YN_LABELS[row.PRJC_END_YN] || row.PRJC_END_YN,
-              사무실주소: row.OFC_ADDR,
-              현장주소: row.SITE_ADDR,
-              위도: row.LAT,
-              경도: row.LNG,
-              사업금액_억원: row.TOT_PJT_AMT,
-            });
-            if (results.length >= limit) break;
+      await scanAllPages(
+        (start, end) => fetchConstructionWorkList(start, end, gu_name),
+        (rows) => {
+          for (const row of rows) {
+            const matchesBizName = !biz_name || (row.BIZ_NM || "").includes(biz_name);
+            if (matchesBizName) {
+              results.push({
+                프로젝트코드: row.BIZ_CD,
+                프로젝트명: row.BIZ_NM,
+                자치구: row.SGG_NM,
+                착수일: row.BIZ_BGNG_YMD,
+                사업기간: row.BIZ_PRD,
+                진행상태: PRJC_END_YN_LABELS[row.PRJC_END_YN] || row.PRJC_END_YN,
+                사무실주소: row.OFC_ADDR,
+                현장주소: row.SITE_ADDR,
+                위도: row.LAT,
+                경도: row.LNG,
+                사업금액_억원: row.TOT_PJT_AMT,
+              });
+              if (results.length >= limit) return true;
+            }
           }
+          return false;
         }
-        if (results.length >= limit) break;
-      }
+      );
 
       return {
         content: [
@@ -226,53 +250,51 @@ function createServer() {
       biz_name: z.string().optional().describe("사업명(BIZ_NM)에 포함될 키워드"),
       inst_name: z.string().optional().describe("발주처기관명(INST_NM) 키워드"),
       gu_name: z.string().optional().describe("자치구명 (예: 종로구). API 자체 필터는 없어 결과를 받은 뒤 클라이언트에서 필터링한다."),
-      min_amount: z.number().optional().describe("최소 도급액(억원). 지정하면 도급액(AMT_CTRT)이 이 값 이상인 건만 반환. API 자체 필터는 없어 max_scan만큼 조회한 뒤 클라이언트에서 필터링한다."),
-      max_scan: z.number().int().min(1).max(2000).default(500).describe("검색을 위해 훑어볼 최대 레코드 수 (기본 500)"),
-      limit: z.number().int().min(1).max(50).default(10).describe("반환할 최대 결과 수 (기본 10)"),
+      min_amount: z.number().optional().describe("최소 도급액(억원). 지정하면 도급액(AMT_CTRT)이 이 값 이상인 건만 반환. API 자체 필터는 없어 전체 데이터를 조회한 뒤 클라이언트에서 필터링한다."),
+      limit: z.number().int().min(1).max(1000).default(10).describe("반환할 최대 결과 수 (기본 10). 검색은 항상 전체 데이터를 대상으로 하며, limit은 반환 개수만 제한한다."),
     },
-    async ({ biz_name, inst_name, gu_name, min_amount, max_scan, limit }) => {
-      const pageSize = 500;
+    async ({ biz_name, inst_name, gu_name, min_amount, limit }) => {
       const results = [];
 
-      for (let start = 1; start <= max_scan; start += pageSize) {
-        const end = Math.min(start + pageSize - 1, max_scan);
-        const rows = await fetchConstructionProgress(start, end, biz_name, inst_name);
-        if (rows.length === 0) break;
-        for (const row of rows) {
-          const matchesGu = !gu_name || row.GU_NM === gu_name;
-          const matchesAmount = min_amount === undefined || parseFloat(row.AMT_CTRT) >= min_amount;
-          if (matchesGu && matchesAmount) {
-            results.push({
-              사업코드: row.BIZ_CD,
-              사업명: row.BIZ_NM,
-              자치구: row.GU_NM,
-              준공여부: row.CMCN_YN2 ? row.CMCN_YN2.trim() : row.CMCN_YN2,
-              계획공정율: formatRate(row.PROCS_PLAN),
-              실적공정율: formatRate(row.PROCS_PRFMNC),
-              대비율: formatRate(row.PER_RT),
-              기준일자: row.CRTR_YMD,
-              총공기: row.DAY_TOT,
-              경과일: row.DAY_ELPS,
-              D_Day: row.DAY_JOB,
-              도급액_억원: row.AMT_CTRT,
-              사업비_억원: row.AMT_BIZ,
-              공사기간: row.CSTRN_PRD,
-              공사위치: row.CSTRN_PSTN,
-              위도: row.LAT,
-              경도: row.LOT,
-              발주처: row.INST_NM,
-              발주처담당자: row.PIC_PE_NM,
-              책임감리원: row.SPVS_PE_NM,
-              현장대리인: row.AGT_PE_NM,
-              감리사업체: row.SPVS_NM,
-              시공사업체: row.CNST_ENT,
-              사업규모: row.BIZ_SCL,
-            });
-            if (results.length >= limit) break;
+      await scanAllPages(
+        (start, end) => fetchConstructionProgress(start, end, biz_name, inst_name),
+        (rows) => {
+          for (const row of rows) {
+            const matchesGu = !gu_name || row.GU_NM === gu_name;
+            const matchesAmount = min_amount === undefined || parseFloat(row.AMT_CTRT) >= min_amount;
+            if (matchesGu && matchesAmount) {
+              results.push({
+                사업코드: row.BIZ_CD,
+                사업명: row.BIZ_NM,
+                자치구: row.GU_NM,
+                준공여부: row.CMCN_YN2 ? row.CMCN_YN2.trim() : row.CMCN_YN2,
+                계획공정율: formatRate(row.PROCS_PLAN),
+                실적공정율: formatRate(row.PROCS_PRFMNC),
+                대비율: formatRate(row.PER_RT),
+                기준일자: row.CRTR_YMD,
+                총공기: row.DAY_TOT,
+                경과일: row.DAY_ELPS,
+                D_Day: row.DAY_JOB,
+                도급액_억원: row.AMT_CTRT,
+                사업비_억원: row.AMT_BIZ,
+                공사기간: row.CSTRN_PRD,
+                공사위치: row.CSTRN_PSTN,
+                위도: row.LAT,
+                경도: row.LOT,
+                발주처: row.INST_NM,
+                발주처담당자: row.PIC_PE_NM,
+                책임감리원: row.SPVS_PE_NM,
+                현장대리인: row.AGT_PE_NM,
+                감리사업체: row.SPVS_NM,
+                시공사업체: row.CNST_ENT,
+                사업규모: row.BIZ_SCL,
+              });
+              if (results.length >= limit) return true;
+            }
           }
+          return false;
         }
-        if (results.length >= limit) break;
-      }
+      );
 
       return {
         content: [

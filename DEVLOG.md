@@ -145,3 +145,63 @@ MCP_ACCESS_KEY 인증이 두 프로젝트 모두 걸려 있으니, rate limit을
 로컬 테스트: 같은 키로 32회 연속 호출 → 31번째 요청에서 처음 429 확인(30회까지 정상 통과).
 README.md의 rate limit 안내 문구도 새 값으로 갱신. 배포(`flyctl deploy`)는 사용자가
 직접 진행 필요.
+
+## 2026-08-29 — limit=50 상한 조사 및 max_scan 부분 스캔 구조 제거
+
+### 조사 배경
+서울 열린데이터광장 API(OA-1222, ListOnePMISBizInfo) 공식 명세의 ERROR-336("한 번에
+최대 1000건")을 근거로, 이 서버가 자체적으로 `limit` 최대값을 50으로 제한하고 있는 게
+API 스펙과 무관한 임의 값인지 확인 요청이 들어왔다. 또한 노원구/영등포구를
+`search_construction_projects`, `search_construction_work_by_district`로 조회했을 때
+0건이 나온 사례가 있어, `limit=50` 캡과 이 0건 문제가 얽혀 있는지가 조사 핵심이었다.
+
+### 조사 결과 (코드 근거로 확정)
+1. **limit=50은 API 명세와 무관한 서버 자체 임의값**이었음을 확정. 4개 도구 모두
+   zod 스키마에 `.max(50)`이 하드코딩돼 있었고, API 명세서 어디에도 50이라는
+   숫자의 근거가 없었다.
+2. **자치구 필터는 API가 지원하지 않는 파라미터**(`get_construction_progress`,
+   `search_construction_projects`)라 응답을 받은 뒤 `row.GU_NM === gu_name` /
+   `row.GU_NAME === gu_name` 방식으로 클라이언트단에서 정확 일치 매칭하고 있었다.
+   이 매칭 로직 자체(문자열 포맷, 공백 등)는 실측 결과 버그가 없었다 — API가
+   반환하는 GU_NM/GU_NAME 필드는 "노원구"처럼 정확한 구명만 담고 있었다.
+3. **limit=50과 0건 문제는 직접적인 인과관계가 없었다**: `limit`은 "매칭된 건수가
+   몇 건 모이면 스캔을 멈출지"만 결정하고, 스캔 범위 자체는 `max_scan`(기존 기본값
+   500, 최대 2000)이 결정하는 구조였기 때문이다. `search_construction_projects`와
+   `search_construction_work_by_district`를 `gu_name="노원구"` 단독 조건(다른 필터
+   없음)으로 재현 테스트했을 때는 기존 코드로도 0건이 재현되지 않고 정상적으로
+   10건씩 반환됐다 — 즉 사용자가 실제로 겪은 0건 사례는 로컬 재현 스크립트로는
+   재현 조건을 특정하지 못했고, 원인 불확실로 남겨둔다.
+4. 다만 별도로, `get_construction_progress`에 `min_amount`(최소 도급액) 필터를
+   자치구 필터와 함께 걸 경우엔 실측으로 진짜 문제를 확인했다: 노원구+100억
+   이상 조건이 기존 `max_scan` 기본값(500)으로는 0건이었으나, `max_scan=2000`으로
+   넓히면 1건이 나왔다. 즉 "일부만 훑고 마는" max_scan 구조가 희소한 필터
+   조합에서 실제로 데이터 누락(가짜 0건)을 일으킬 수 있음을 실측으로 확인했다.
+
+### 적용한 변경
+`max_scan`이라는 "일부만 훑는" 개념 자체를 제거하고, API 응답의
+`list_total_count`를 첫 페이지에서 읽어 그 값에 도달할 때까지 자동으로 여러 번
+호출하며 전량을 스캔하는 `scanAllPages` 헬퍼를 추가했다. 페이지 크기는 API
+공식 상한인 1000건(ERROR-336)으로 맞췄다. `search_construction_projects`,
+`search_construction_work_by_district`, `get_construction_progress` 3개 도구가
+모두 이 헬퍼를 쓰도록 재작성했고, `limit`은 스캔 범위와 완전히 분리해 "반환
+개수 제한" 용도로만 남기고 최대값을 50 → 1000으로 완화했다(API 명세상 안전한
+값). `max_scan` 파라미터 자체는 도구 스키마에서 제거했다.
+
+### 로컬 테스트 결과 (실측)
+- 필터 없음(get_construction_progress, limit=10 기본값): 10건 정상 반환, 기존
+  동작과 동일 (totalCount=5710, 1페이지만 조회)
+- get_construction_progress, gu_name=노원구 + min_amount=100: **8건** (기존
+  max_scan=500 구조에서는 0건이었던 케이스 — 전량 스캔으로 정상 해결, 6페이지
+  스캔)
+- get_construction_progress, gu_name=영등포구 + min_amount=100: **6건** (기존
+  4건에서 8건→6건으로 증가, 6페이지 스캔 시 더 정확한 값 확인)
+- search_construction_projects, gu_name=노원구: 10건 정상 (totalCount=5318,
+  1페이지만으로 충분해 기존과 동일하게 즉시 반환)
+- search_construction_work_by_district, gu_name=노원구: 10건 정상
+  (totalCount=22 — API가 이미 구 단위로 필터링해 반환하므로 애초에 소량)
+- limit=1000 전체 조회 성능 확인: 1000건을 194ms에 반환 (1페이지로 충분, 응답
+  지연 문제 없음)
+
+### 다음 할 일
+- git add/commit까지만 진행, fly.io 배포(`flyctl deploy`)는 사용자가 PowerShell에서
+  직접 진행.
