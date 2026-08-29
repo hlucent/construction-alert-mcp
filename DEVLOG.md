@@ -12,14 +12,6 @@
 
 ---
 
-## 2026-08-29 서울시 건설알림이 MCP 리브랜딩 — 공개 전환
-- MCP_ACCESS_KEY 인증 미들웨어 제거
-- Rate limit 미들웨어 제거
-- OAuth discovery 스텁 제거(원래 구현된 적 없음, 확인 완료)
-- 사유: PlayMCP 공개 등록 예정
-- fly.io 앱 이름 변경(construction-u7fce4 → seoul-construction-mcp) 및 실제 배포는
-  사용자가 PowerShell에서 직접 진행 예정 (미완료)
-
 ## 2026-08-03
 - 한 일: 프로젝트 뼈대 생성, DEVLOG.md/README.md 템플릿 작성
 - 막힌 점: 서울 열린데이터광장 "서울시 건설알림이 정보(OA-1222)" API가 서비스 종료 상태 확인됨.
