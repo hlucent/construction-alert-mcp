@@ -221,3 +221,31 @@ API 스펙과 무관한 임의 값인지 확인 요청이 들어왔다. 또한 �
 - 별도로, 이 세션 중 로컬 프로젝트 폴더가 원인 불명으로 완전히 비어있던 것을 발견 →
   GitHub 원격(df388d2 기준)에서 재클론으로 복구. .gitignore 처리된 fly.toml도 함께
   유실되어 `fly config save -a seoul-construction-mcp`로 재생성 완료.
+
+## 2026-08-31 — 서울시 전체 조회 시 자치구별 요약 기능 추가 + 자치구 필터 검증 버그 수정
+
+- 배경: claude.ai에서 "서울시 전체 공사 몇 건이냐"고 물으면 필터 없이 전체 데이터
+  (5천~6천 건)를 상세 목록으로 통째로 반환하려다 대화 컨텍스트 한도 초과로 응답 실패
+  하는 문제 발생.
+- 조치: search_construction_work_by_district, search_construction_projects,
+  get_construction_progress 세 도구 모두, gu_name이 없을 때(=서울시 전체 조회)
+  상세 목록 대신 자치구별 건수 요약 + 총계만 반환하도록 분기 추가. gu_name이
+  있으면(특정 구 조회) 기존 상세 목록 동작 그대로 유지.
+- 실측 결과: search_construction_work_by_district 총계 5,814건,
+  search_construction_projects 총계 5,299건, get_construction_progress
+  총계 5,710건(과거 인수인계서의 "약 5710건" 언급의 출처가 이 도구였음이 확정됨).
+  세 도구 모두 자치구별_건수 합산값과 총계가 정확히 일치 확인.
+- 부수적으로 발견한 별개 버그: search_construction_work_by_district는
+  ListConstructionWorkService API가 gu_name 경로 세그먼트로 자치구 필터링을
+  해준다고 가정하고 클라이언트단 재검증 없이 서버 응답을 그대로 신뢰했으나,
+  실제로는 API가 다른 구 데이터를 섞어서 반환하는 경우가 있음을 실측으로 확인
+  (노원구 조회 시 강북구 항목 혼입). 다른 두 도구(search_construction_projects,
+  get_construction_progress)는 이미 클라이언트단 재검증(=== gu_name)을 하고
+  있었는데 이 도구만 빠져 있었던 것. row.SGG_NM === gu_name 조건을 추가해 수정.
+  수정 후 노원구 실제 매칭 건수는 전체 데이터 중 17건으로 확인됨(재검증 전에는
+  다른 구 항목이 섞여 limit만큼 채워지고 있었음).
+- 교훈: "API가 요청한 파라미터대로 정확히 필터링해서 반환한다"는 가정은 검증
+  없이 신뢰하면 안 됨 — 같은 프로젝트 안에서도 도구마다 이 가정을 다르게
+  처리하고 있었던 것이 이번에 드러남. 향후 새 검색 도구를 만들 때는 서버 사이드
+  필터에 의존하더라도 클라이언트단 재검증을 기본으로 포함하는 것을 표준 패턴으로
+  고려할 가치가 있음.
