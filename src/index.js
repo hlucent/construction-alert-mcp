@@ -283,8 +283,9 @@ function createServer() {
         (start, end) => fetchConstructionWorkList(start, end, gu_name),
         (rows) => {
           for (const row of rows) {
+            const matchesGu = row.SGG_NM === gu_name;
             const matchesBizName = !biz_name || (row.BIZ_NM || "").includes(biz_name);
-            if (matchesBizName) {
+            if (matchesGu && matchesBizName) {
               results.push({
                 프로젝트코드: row.BIZ_CD,
                 프로젝트명: row.BIZ_NM,
