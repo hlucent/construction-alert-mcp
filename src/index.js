@@ -125,12 +125,49 @@ function createServer() {
       limit: z.number().int().min(1).max(1000).default(10).describe("반환할 최대 결과 수 (기본 10). 검색은 항상 전체 데이터를 대상으로 하며, limit은 반환 개수만 제한한다."),
     },
     async ({ gu_name, keyword, limit }) => {
+      if (!gu_name) {
+        const countsByGu = {};
+        await scanAllPages(
+          (start, end) => fetchProjectList(start, end),
+          (rows) => {
+            for (const row of rows) {
+              const matchesKeyword = !keyword || (row.PJT_NAME || "").includes(keyword);
+              if (matchesKeyword) {
+                const gu = row.GU_NAME || "미상";
+                countsByGu[gu] = (countsByGu[gu] || 0) + 1;
+              }
+            }
+            return false;
+          }
+        );
+        const sortedEntries = Object.entries(countsByGu).sort((a, b) => b[1] - a[1]);
+        const total = sortedEntries.reduce((sum, [, count]) => sum + count, 0);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  출처: PROJECT_LIST_SOURCE,
+                  안내:
+                    "구 필터 없이 서울시 전체를 조회하면 결과가 매우 많아 자치구별 요약만 제공합니다. 특정 자치구를 지정하면 상세 목록을 볼 수 있습니다.",
+                  총계: total,
+                  자치구별_건수: Object.fromEntries(sortedEntries),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
       const results = [];
       await scanAllPages(
         (start, end) => fetchProjectList(start, end),
         (rows) => {
           for (const row of rows) {
-            const matchesGu = !gu_name || row.GU_NAME === gu_name;
+            const matchesGu = row.GU_NAME === gu_name;
             const matchesKeyword = !keyword || (row.PJT_NAME || "").includes(keyword);
             if (matchesGu && matchesKeyword) {
               results.push({
@@ -203,6 +240,43 @@ function createServer() {
       limit: z.number().int().min(1).max(1000).default(10).describe("반환할 최대 결과 수 (기본 10). 검색은 항상 전체 데이터를 대상으로 하며, limit은 반환 개수만 제한한다."),
     },
     async ({ gu_name, biz_name, limit }) => {
+      if (!gu_name) {
+        const countsByGu = {};
+        await scanAllPages(
+          (start, end) => fetchConstructionWorkList(start, end, undefined),
+          (rows) => {
+            for (const row of rows) {
+              const matchesBizName = !biz_name || (row.BIZ_NM || "").includes(biz_name);
+              if (matchesBizName) {
+                const gu = row.SGG_NM || "미상";
+                countsByGu[gu] = (countsByGu[gu] || 0) + 1;
+              }
+            }
+            return false;
+          }
+        );
+        const sortedEntries = Object.entries(countsByGu).sort((a, b) => b[1] - a[1]);
+        const total = sortedEntries.reduce((sum, [, count]) => sum + count, 0);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  출처: CONSTRUCTION_WORK_SOURCE,
+                  안내:
+                    "구 필터 없이 서울시 전체를 조회하면 결과가 매우 많아 자치구별 요약만 제공합니다. 특정 자치구를 지정하면 상세 목록을 볼 수 있습니다.",
+                  총계: total,
+                  자치구별_건수: Object.fromEntries(sortedEntries),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
       const results = [];
 
       await scanAllPages(
@@ -254,13 +328,50 @@ function createServer() {
       limit: z.number().int().min(1).max(1000).default(10).describe("반환할 최대 결과 수 (기본 10). 검색은 항상 전체 데이터를 대상으로 하며, limit은 반환 개수만 제한한다."),
     },
     async ({ biz_name, inst_name, gu_name, min_amount, limit }) => {
+      if (!gu_name) {
+        const countsByGu = {};
+        await scanAllPages(
+          (start, end) => fetchConstructionProgress(start, end, biz_name, inst_name),
+          (rows) => {
+            for (const row of rows) {
+              const matchesAmount = min_amount === undefined || parseFloat(row.AMT_CTRT) >= min_amount;
+              if (matchesAmount) {
+                const gu = row.GU_NM || "미상";
+                countsByGu[gu] = (countsByGu[gu] || 0) + 1;
+              }
+            }
+            return false;
+          }
+        );
+        const sortedEntries = Object.entries(countsByGu).sort((a, b) => b[1] - a[1]);
+        const total = sortedEntries.reduce((sum, [, count]) => sum + count, 0);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  출처: CONSTRUCTION_PROGRESS_SOURCE,
+                  안내:
+                    "구 필터 없이 서울시 전체를 조회하면 결과가 매우 많아 자치구별 요약만 제공합니다. 특정 자치구를 지정하면 상세 목록을 볼 수 있습니다.",
+                  총계: total,
+                  자치구별_건수: Object.fromEntries(sortedEntries),
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
       const results = [];
 
       await scanAllPages(
         (start, end) => fetchConstructionProgress(start, end, biz_name, inst_name),
         (rows) => {
           for (const row of rows) {
-            const matchesGu = !gu_name || row.GU_NM === gu_name;
+            const matchesGu = row.GU_NM === gu_name;
             const matchesAmount = min_amount === undefined || parseFloat(row.AMT_CTRT) >= min_amount;
             if (matchesGu && matchesAmount) {
               results.push({
