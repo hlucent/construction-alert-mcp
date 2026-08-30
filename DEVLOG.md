@@ -205,3 +205,19 @@ API 스펙과 무관한 임의 값인지 확인 요청이 들어왔다. 또한 �
 ### 다음 할 일
 - git add/commit까지만 진행, fly.io 배포(`flyctl deploy`)는 사용자가 PowerShell에서
   직접 진행.
+
+## 2026-08-30 — max_scan 제거 배포 완료 + SEOUL_OPENAPI_KEY 시크릿 등록
+
+- 전날(2026-08-29) 커밋한 df388d2(max_scan 부분 스캔 제거, limit 1000 완화)를
+  실제로 fly.io에 배포 완료. `fly deploy -a seoul-construction-mcp` 정상 완료.
+- 배포 후 claude.ai 실제 도구 호출로 검증한 결과, 모든 도구가 필터 유무와 무관하게
+  빈 배열만 반환하는 별도 문제 발견. 원인 조사 결과 배포 환경에 SEOUL_OPENAPI_KEY
+  시크릿이 애초에 한 번도 등록된 적이 없었던 것으로 확인(fly ssh console로 컨테이너
+  접속 후 실측: 환경변수 비어있음, 업스트림 API가 "인증키가 유효하지 않습니다" 반환).
+- `fly secrets set SEOUL_OPENAPI_KEY=... -a seoul-construction-mcp`로 시크릿 신규
+  등록, 자동 재배포됨.
+- 재검증 결과: 노원구 필터 없음 10건, 노원구+100억 이상 8건으로 이전 로컬 테스트
+  예측치와 정확히 일치 확인. 이것으로 max_scan 버그 수정 작업이 완전히 종료됨.
+- 별도로, 이 세션 중 로컬 프로젝트 폴더가 원인 불명으로 완전히 비어있던 것을 발견 →
+  GitHub 원격(df388d2 기준)에서 재클론으로 복구. .gitignore 처리된 fly.toml도 함께
+  유실되어 `fly config save -a seoul-construction-mcp`로 재생성 완료.
