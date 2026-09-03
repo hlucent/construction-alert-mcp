@@ -249,3 +249,51 @@ API 스펙과 무관한 임의 값인지 확인 요청이 들어왔다. 또한 �
   처리하고 있었던 것이 이번에 드러남. 향후 새 검색 도구를 만들 때는 서버 사이드
   필터에 의존하더라도 클라이언트단 재검증을 기본으로 포함하는 것을 표준 패턴으로
   고려할 가치가 있음.
+
+## 2026-09-03
+- 한 일: `local-web-hybrid` 브랜치에서 로컬↔웹 겸용 구조 전환 작업 진행
+  (HYBRID_TASK.md 작업지시서 기준).
+  - 인증 미들웨어(`/mcp`): `MCP_ACCESS_KEY`가 비어있으면 인증 검사를 건너뛰도록
+    수정. 값이 있으면 기존 `timingSafeEqual` 방식 그대로 유지.
+  - rate limit 미들웨어(`/mcp`): 새 환경변수 `DEPLOY_MODE` 도입.
+    `web`이면 기존 rate limit(분당 30회, 일일 1000회, 24시간 차단) 그대로 적용,
+    `local`(또는 미설정)이면 완전히 스킵.
+  - `src/index.js` 상단에 `import "dotenv/config";` 추가 — package.json에
+    dotenv가 의존성으로 있었지만 실제로는 로드하는 코드가 없어 `.env`가
+    무시되고 있었던 기존 버그를 함께 수정(로컬 테스트를 위해 필요).
+  - `.env.example`에 `MCP_ACCESS_KEY`(빈 값), `DEPLOY_MODE=local`,
+    `PORT=8001` 예시 추가(주석으로 web 옵션 안내 포함).
+  - `docs/claude-desktop-local-example.json` 신규 작성 — 이 서버가
+    StreamableHTTP 방식이라(stdio 아님) Desktop config는 로컬 서버를 먼저
+    기동한 뒤 URL 커넥터(`http://localhost:8001/mcp`)로 등록하는 형태로 작성.
+    API 키는 플레이스홀더(`<YOUR_SEOUL_OPENAPI_KEY>`)만 사용.
+  - README.md "설치 방법" 섹션을 1) 로컬 설치, 2) 웹 배포(참고용), 3) Claude
+    Code로 설치 돕기 3단계로 재구성.
+- 실측 결과 (로컬 모드, PORT=8001, MCP_ACCESS_KEY 비움, DEPLOY_MODE=local):
+  - `node --check src/index.js` 문법 검증 통과.
+  - initialize 요청 → 인증 없이 200 정상 응답(`protocolVersion 2024-11-05`,
+    tools capability 포함) 확인.
+  - `search_construction_projects`(gu_name=서초구) → 실제 데이터 10건 정상
+    반환 확인(사업코드/사업명/연락처 등 필드 채워짐).
+  - `get_construction_progress`(gu_name=서초구, limit=2) → 실제 데이터 2건
+    정상 반환 확인(공정률 필드는 "미입력"으로 정상 표시, 기존 formatRate
+    로직 그대로 동작).
+  - 디버깅 메모: curl로 한글 인자를 인라인 쌍따옴표 문자열로 넘기면 Windows
+    Git Bash 인코딩 이슈로 값이 깨져 빈 결과가 나왔음 — `--data-binary @file`
+    방식으로 바꾸자 정상 매칭됨. 코드 버그 아님, 로컬 curl 테스트 방식 문제였음.
+- 실측 결과 (웹 모드 회귀 테스트, DEPLOY_MODE=web, MCP_ACCESS_KEY=테스트용
+  임의값으로 임시 전환 후 재검증, 검증 끝나고 원래 로컬용 `.env`로 즉시 복원):
+  - `?key=` 없이 요청 → 401 확인.
+  - 틀린 `?key=` 값으로 요청 → 401 확인.
+  - 올바른 `?key=` 값으로 요청 → 200 확인.
+  - 동일 키로 32회 연속 요청 → 29번째까지 200, 30번째부터 429(분당 30회
+    제한) 확인. 기존 rate limit 로직에 회귀 없음.
+  - 최초 재시작 직후 한 번은 이전에 남아있던 로컬모드 node 프로세스가 같은
+    포트(8001)에 계속 떠 있어 인증이 전혀 적용되지 않는 것처럼 보이는 현상이
+    있었음 — `taskkill /F /IM node.exe`로 잔여 프로세스를 모두 정리하고
+    재기동한 뒤에는 정상 동작. 코드 문제가 아니라 로컬 테스트 환경(중복 프로세스)
+    문제였음.
+- README/DEVLOG 재검토: `grep -rniE "api[_-]?key\s*=\s*[a-z0-9]{10,}"` 및
+  카드번호 패턴으로 재검토, 실제 키/개인정보 값 없음 확인(플레이스홀더만 존재).
+- 다음 할 일: 사용자가 새 대화창에서 Claude Desktop에 로컬 서버 등록 후 최종
+  확인 → 문제없으면 main에 merge 요청.

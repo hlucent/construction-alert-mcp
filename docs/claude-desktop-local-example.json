@@ -1,0 +1,10 @@
+{
+  "_comment": "이 서버는 stdio가 아니라 StreamableHTTP 방식입니다. 먼저 터미널에서 로컬 서버를 띄운 뒤(예: PORT=8001 npm start), 아래 URL 커넥터를 등록하세요. Claude Desktop 버전에 따라 URL 기반 커넥터 등록 UI/설정 방식이 다를 수 있으니, 화면에 보이는 안내를 따르세요.",
+  "mcpServers": {
+    "construction-alert-mcp-local": {
+      "type": "url",
+      "url": "http://localhost:8001/mcp",
+      "_note": "로컬 실행 시 MCP_ACCESS_KEY를 비워두면 인증이 생략되므로 ?key= 없이 위 URL 그대로 사용합니다. 웹 배포본에 연결하려면 https://<앱이름>.fly.dev/mcp?key=<YOUR_MCP_ACCESS_KEY> 형태로 바꾸세요."
+    }
+  }
+}

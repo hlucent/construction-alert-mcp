@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { timingSafeEqual } from "node:crypto";
 import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -438,13 +439,13 @@ function timingSafeStringEqual(a, b) {
   return timingSafeEqual(bufA, bufB);
 }
 
+// 로컬 실행 시 MCP_ACCESS_KEY를 비워두면 인증 검사를 건너뛴다(로컬은 본인만
+// 접근하므로 인증이 불필요). 웹 배포 시 fly secrets set으로 MCP_ACCESS_KEY를
+// 설정하면 아래 검사가 자동으로 활성화된다 — 코드 수정 없이 환경변수만으로 전환.
 app.use("/mcp", (req, res, next) => {
   const expectedKey = process.env.MCP_ACCESS_KEY;
   if (!expectedKey) {
-    res
-      .status(500)
-      .type("text/plain; charset=utf-8")
-      .send("서버 설정 오류: MCP_ACCESS_KEY가 설정되지 않았습니다.");
+    next();
     return;
   }
 
@@ -490,7 +491,14 @@ function recordRateLimitHit(ip, now) {
   }
 }
 
+// DEPLOY_MODE=web일 때만 rate limit을 적용한다. local(또는 미설정)이면 완전히
+// 스킵한다 — 로컬 실행은 본인만 호출하므로 rate limit이 불필요하다.
 app.use("/mcp", (req, res, next) => {
+  if (process.env.DEPLOY_MODE !== "web") {
+    next();
+    return;
+  }
+
   const ip = req.ip;
   const now = Date.now();
 
