@@ -5,15 +5,16 @@
 제공하는 프로젝트. Claude.ai에서 커넥터로 연결해 자연어로 서울시 공사 현황을
 검색/조회할 수 있게 해준다.
 
-- 배포 주소: `<앱이름>.fly.dev/mcp?key=본인의_MCP_ACCESS_KEY` (실제 앱 이름은 fly.toml 참고 — GitHub에는 올리지 않음, 2026-08-24부터)
-- GitHub: hlucent/construction-alert-mcp
-- **실제 작업 폴더(확정): C:\Users\hwang\project\construction-alert-mcp**
-  (2026-08-05 확인: .git 존재, origin이 github.com/hlucent/construction-alert-mcp로
-  연결됨, 최신 커밋과 코드가 일치하는 진짜 작업 폴더)
+- 배포 주소: 없음 — fly.io 앱(seoul-construction-mcp)은 2026-09-03에 완전히
+  삭제됨. 현재는 로컬/각자 설치 방식으로만 운영 (README.md "설치 방법 → 1. 로컬 설치" 참고).
+- GitHub: hlucent/seoul-construction-mcp
+- **실제 작업 폴더(확정): C:\Users\hwang\Projects\seoul-construction-mcp**
+  (.git 존재, origin이 github.com/hlucent/seoul-construction-mcp로 연결됨,
+  최신 커밋과 코드가 일치하는 진짜 작업 폴더)
 - 실제 코드 진입점: src/index.js (Node.js 프로젝트. main.py 아님)
-- 참고: Downloads 폴더에 있던 construction-alert-mcp 사본들은 git 없는 낡은
-  초기 버전이었고, 2026-08-05에 안전하게 삭제 완료됨. 앞으로 이 프로젝트 작업은
-  반드시 위 project 폴더에서만 진행할 것.
+- 참고: 과거 저장소명은 construction-alert-mcp, 작업 폴더는
+  C:\Users\hwang\project\construction-alert-mcp였으나 이후 seoul-construction-mcp로
+  개편됨. 앞으로 이 프로젝트 작업은 반드시 위 Projects 폴더에서만 진행할 것.
 - 사용자(청정)는 비개발자 — 모든 안내는 복사-붙여넣기 가능한 완성된 명령어로,
   어느 창(PowerShell/메모장/브라우저)에 입력하는지 명확히 구분해서 제공할 것.
 
@@ -198,7 +199,7 @@ git commit → push → flyctl deploy 순서를 손으로 반복해왔다. 2026-
 
 ### 사용법
 ```
-cd C:\Users\hwang\project\construction-alert-mcp
+cd C:\Users\hwang\Projects\seoul-construction-mcp
 .\deploy.ps1 -CommitMessage "커밋메시지"
 ```
 
@@ -266,7 +267,7 @@ main 브랜치가 곧 실제 서비스 중인 상태이므로, 실험적이거�
 
 ## 향후 계획
 - 서울시 열린데이터 추가 데이터셋 신규 도구화 검토 중
-- 이 CLAUDE.md는 GitHub 저장소(hlucent/construction-alert-mcp)에 커밋되어
+- 이 CLAUDE.md는 GitHub 저장소(hlucent/seoul-construction-mcp)에 커밋되어
   있어 PC 포맷 시에도 유실되지 않음 (전역 CLAUDE.md는
   C:\Users\hwang\.claude\CLAUDE.md에 있으나 로컬 전용이라 포맷 시 사라짐 —
   프로젝트별 CLAUDE.md는 반드시 저장소에 커밋해 별도 보관)
